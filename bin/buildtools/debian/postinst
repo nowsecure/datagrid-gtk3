@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+# Automatically added by dh_python2:
+if which pycompile >/dev/null 2>&1; then
+        pycompile -p viaextract 
+fi
+
+# End automatically added section
+
+# use custom CodeMeter-enabled python interpeter
+sudo sed -i "s/\#\!\/usr\/bin\/python/\#\!\/usr\/local\/bin\/python.via/g" /usr/bin/datagrid-gtk2

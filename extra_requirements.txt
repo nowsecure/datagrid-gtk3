@@ -1,0 +1,12 @@
+# This file contains requirements that are not needed,
+# but are recommended specially with regard to static analysis
+ipython
+ipdb
+prospector[with_everything]
+flake8
+flake8-blind-except
+flake8-debugger
+flake8-docstrings
+flake8-import-order
+flake8-quotes
+pep8-naming
