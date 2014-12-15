@@ -11,7 +11,7 @@ Tests for `datagrid-gtk2` module.
 import unittest
 
 
-class TestDatagrid-gtk2(unittest.TestCase):
+class TestDatagrid(unittest.TestCase):
 
     def setUp(self):
         pass
@@ -21,6 +21,7 @@ class TestDatagrid-gtk2(unittest.TestCase):
 
     def tearDown(self):
         pass
+
 
 if __name__ == '__main__':
     unittest.main()
