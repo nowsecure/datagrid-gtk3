@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Main module of the datagrid-gtk2 package, used to start an example."""
+"""Main module of the datagrid_gtk2 package, used to start an example."""
 
 import logging
 import sys

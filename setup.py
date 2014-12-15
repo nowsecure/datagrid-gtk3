@@ -78,9 +78,9 @@ setup(
     author_email='info@viaforensics.com',
     url='https://viaforensics.com',
     packages=find_packages(),
-    package_dir={'datagrid-gtk2':
-                 'datagrid-gtk2'},
-    package_data={'datagrid-gtk2': recurse_data_files('data')},
+    package_dir={'datagrid_gtk2':
+                 'datagrid_gtk2'},
+    package_data={'datagrid_gtk2': recurse_data_files('data')},
     include_package_data=True,
     # data_files=[('/destination/path', ['file1', file2']),]
     # NOTE: ^^^ any files that need to be installed outside the pkg dir
@@ -93,6 +93,6 @@ setup(
         'Natural Language :: English',
         "Programming Language :: Python :: 2",
     ],
-    test_suite='datagrid-gtk2.tests',
+    test_suite='datagrid_gtk2.tests',
     tests_require=test_requirements
 )
