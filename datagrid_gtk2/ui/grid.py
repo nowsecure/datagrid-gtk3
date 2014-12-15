@@ -12,6 +12,12 @@ from . import popupcal
 from .uifile import UIFile
 
 GRID_LABEL_MAX_LENGTH = 100
+_MEDIA_FILES = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    os.pardir,
+    "data",
+    "media"
+)
 
 
 class DataGridContainer(UIFile):
@@ -51,8 +57,9 @@ def default_get_full_path(relative_path):
     :type relative_path: str
     :rtype: str or None
     """
-    if os.path.exists(relative_path):
-        return relative_path
+    full_path = os.path.join(_MEDIA_FILES, relative_path)
+    if os.path.exists(full_path):
+        return full_path
 
 
 class DataGridController(object):
@@ -607,7 +614,11 @@ class DataGridModel(gtk.GenericTreeModel):
 
     :param data_source: Persistent data source to populate model
     :type data_source: :class:`viaextract.core.db.sqlite.SQLiteDataSource`
-    :param function get_media_callback: Function to retrieve media file
+    :param get_media_callback: Function to retrieve media file
+    :type get_media_callback: callable
+    :param decode_fallback: Callable for converting objects to
+        strings in case `unicode(obj)` fails.
+    :type decode_fallback: callable
     :param str encoding_hint: Encoding to use for rendering strings
 
     NOTE: gtk.GenericTreeModel is not available in GTK3; for porting, take a

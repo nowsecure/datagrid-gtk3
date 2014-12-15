@@ -6,8 +6,8 @@ Usage
 
     import gtk
 
-    from datagrid-gtk2.ui.grid import DataGridContainer, DataGridController
-    from datagrid-gtk2.db.sqlite import SQLiteDataSource
+    from datagrid_gtk2.ui.grid import DataGridContainer, DataGridController
+    from datagrid_gtk2.db.sqlite import SQLiteDataSource
 
     win = gtk.Window()
     datagrid_container = DataGridContainer(win)
@@ -46,7 +46,7 @@ with an overridden ID_COLUMN attribute:
 
 .. code-block:: python
 
-    from datagrid-gtk2.db.sqlite import SQLiteDataSource
+    from datagrid_gtk2.db.sqlite import SQLiteDataSource
 
     class vE_SQLiteDataSource(SQLiteDataSource):
         ID_COLUMN = '__viaextract_id'
