@@ -94,9 +94,5 @@ setup(
         "Programming Language :: Python :: 2",
     ],
     test_suite='datagrid-gtk2.tests',
-    tests_require=test_requirements,
-    entry_points=("""
-        [console_scripts]
-        datagrid-gtk2 = datagrid-gtk2.main:main
-    """)
+    tests_require=test_requirements
 )
