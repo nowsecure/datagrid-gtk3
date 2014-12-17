@@ -14,6 +14,7 @@ import gobject
 
 from ui.grid import DataGridContainer, DataGridController
 from db.sqlite import SQLiteDataSource
+from db import EmptyDataSource
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,8 @@ def main():
 
     win = gtk.Window()
     datagrid_container = DataGridContainer(win)
-    datagrid_source = SQLiteDataSource(
-        db_path, 'employee', ensure_selected_column=False
-    )
-    controller = DataGridController(datagrid_container, datagrid_source,
+    controller = DataGridController(datagrid_container,
+                                    EmptyDataSource(),
                                     has_checkboxes=False)
     datagrid_container.grid_vbox.reparent(win)
 
@@ -63,6 +62,7 @@ def main():
     column.add_attribute(cell, 'text', 0)
 
     table_store = gtk.ListStore(str)
+    # TODO: not all tables are working correctly when used as a data source
     for item in "album artist employee genre track".split():
         table_store.append([item])
     table_list.set_model(table_store)
