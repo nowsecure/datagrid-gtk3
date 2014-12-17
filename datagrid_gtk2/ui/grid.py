@@ -95,23 +95,23 @@ class DataGridController(object):
         if get_full_path is None:
             get_full_path = default_get_full_path
 
+        self.decode_fallback = decode_fallback
+        self.get_full_path = get_full_path
+
         self.container = container
         self.selected_record_callback = selected_record_callback
-        self.model = DataGridModel(data_source, get_full_path, decode_fallback)
-        self.model.connect('data-loaded', self.on_data_loaded)
         vscroll = container.grid_scrolledwindow.get_vadjustment()
-        self.view = DataGridView(self.model, vscroll, has_checkboxes)
-        if has_checkboxes:
-            self.view.connect('cursor-changed', self.on_view_selection_changed)
-        self.view.reset()
+        self.view = DataGridView(None, vscroll, has_checkboxes)
         self.container.grid_viewport.add(self.view)
-        self.view.set_result()
+
+        self.bind_datasource(data_source)
 
         # select all checkbutton
         checkbutton_select_all = self.container.checkbutton_select_all
         if has_checkboxes:
             checkbutton_select_all.connect(
                 'toggled', self.on_select_all_toggled)
+            self.view.connect('cursor-changed', self.on_view_selection_changed)
         else:
             checkbutton_select_all.destroy()
 
@@ -140,20 +140,6 @@ class DataGridController(object):
         self.container.vbox_end_date.pack_start(
             self.date_end, expand=False, fill=True)
 
-        liststore_date_cols = gtk.ListStore(str, str)
-        if self.model.datetime_columns:
-            self.date_start.set_sensitive(True)
-            self.date_end.set_sensitive(True)
-        for column in self.model.datetime_columns:
-            liststore_date_cols.append((column['name'], column['display']))
-        combox_date_cols = self.container.combobox_date_columns
-        combox_date_cols.set_model(liststore_date_cols)
-        cell = gtk.CellRendererText()
-        combox_date_cols.pack_start(cell, True)
-        combox_date_cols.add_attribute(cell, 'text', 1)
-        combox_date_cols.set_active(0)
-        combox_date_cols.connect('changed', self.on_date_change, None)
-
         # search widget
         self.container.entry_search.connect('activate', self.on_search_clicked)
         self.container.button_search.connect('clicked', self.on_search_clicked)
@@ -162,6 +148,41 @@ class DataGridController(object):
         self.container.button_clear.connect('clicked', self.on_clear_clicked)
 
         self.container.grid_vbox.show_all()
+
+    def bind_datasource(self, data_source):
+        """Binds a data source to the datagrid.
+
+        :param data_source: The data source to bind.
+        :type data_source: :class:`datagrid_gtk2.db.sqlite.SQLiteDataSource`
+        """
+        self.model = DataGridModel(data_source,
+                                   self.get_full_path,
+                                   self.decode_fallback)
+        self.model.connect('data-loaded', self.on_data_loaded)
+        self.view.model = self.model
+
+        liststore_date_cols = gtk.ListStore(str, str)
+        if self.model.datetime_columns:
+            self.date_start.set_sensitive(True)
+            self.date_end.set_sensitive(True)
+
+        for column in self.model.datetime_columns:
+            liststore_date_cols.append((column['name'], column['display']))
+
+        combox_date_cols = self.container.combobox_date_columns
+        old_model = combox_date_cols.get_model()
+        if old_model:
+            del old_model
+        combox_date_cols.set_model(liststore_date_cols)
+        if not combox_date_cols.get_cells():
+            cell = gtk.CellRendererText()
+            combox_date_cols.pack_start(cell, True)
+            combox_date_cols.add_attribute(cell, 'text', 1)
+            combox_date_cols.set_active(0)
+            combox_date_cols.connect('changed', self.on_date_change, None)
+
+        self.view.reset()
+        self.view.set_result()
 
     ###
     # Callbacks
