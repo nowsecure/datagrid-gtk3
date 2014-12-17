@@ -70,7 +70,7 @@ class DataGridController(object):
         access to GTK widgets for controller
     :type container: :class:`DataGridContainer`
     :param data_source: Database backend instance
-    :type data_source: :class:`viaextract.core.db.sqlite.SQLiteDataSource`
+    :type data_source: :class:`datagrid_gtk2.db.sqlite.SQLiteDataSource`
     :param selected_record_callback:
         Function to execute when a record is selected in the grid
     :type selected_record_callback: function
@@ -101,7 +101,8 @@ class DataGridController(object):
         self.model.connect('data-loaded', self.on_data_loaded)
         vscroll = container.grid_scrolledwindow.get_vadjustment()
         self.view = DataGridView(self.model, vscroll, has_checkboxes)
-        self.view.connect('cursor-changed', self.on_view_selection_changed)
+        if has_checkboxes:
+            self.view.connect('cursor-changed', self.on_view_selection_changed)
         self.view.reset()
         self.container.grid_viewport.add(self.view)
         self.view.set_result()
@@ -613,7 +614,7 @@ class DataGridModel(gtk.GenericTreeModel):
     store such as a SQLite database table.
 
     :param data_source: Persistent data source to populate model
-    :type data_source: :class:`viaextract.core.db.sqlite.SQLiteDataSource`
+    :type data_source: :class:`datagrid_gtk2.db.sqlite.SQLiteDataSource`
     :param get_media_callback: Function to retrieve media file
     :type get_media_callback: callable
     :param decode_fallback: Callable for converting objects to

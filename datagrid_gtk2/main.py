@@ -4,6 +4,7 @@
 
 import logging
 import sys
+import os
 
 import pygtk
 pygtk.require('2.0')
@@ -35,15 +36,21 @@ def main():
     logger.info("Starting a datagrid-gtk2 example.")
 
     win = gtk.Window()
+
     datagrid_container = DataGridContainer(win)
     datagrid_source = SQLiteDataSource(
-        '../example_data/chinook.sqlite',
-        'track'
+        os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                     os.path.pardir, 'example_data', 'chinook.sqlite'),
+        'track',
+        ensure_selected_column=False
     )
-    controller = DataGridController(datagrid_container, datagrid_source)
-    win.add(datagrid_container.vpaned_grid)
-    win.show_all()
+    controller = DataGridController(datagrid_container, datagrid_source,
+                                    has_checkboxes=False)
+    datagrid_container.grid_vbox.reparent(win)
 
+    win.set_default_size(600, 400)
+    win.connect("delete-event", lambda *args: gtk.main_quit())
+    win.show_all()
     gtk.main()
 
 

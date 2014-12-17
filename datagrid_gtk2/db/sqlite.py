@@ -22,7 +22,7 @@ class SQLiteDataSource(object):
     """SQLite data source especially for use with a `gtk.TreeModel`.
 
     Provides a SQLite backend for providing data to a
-    :class:`viaextract.ui.datagrid.grid.DataGridModel` instance, which is
+    :class:`datagrid_gtk2.ui.grid.DataGridModel` instance, which is
     a GTK `TreeModel`.
 
     Optional table configuration example::
@@ -40,6 +40,8 @@ class SQLiteDataSource(object):
         if the table being SELECTed is actually a view
     :param list config: list of table configuration tuples including display
         names, data types, transforms, etc.
+    :param bool ensure_selected_column: Whether to ensure the presence of
+        the __selected column.
     """
 
     MAX_RECS = 100
@@ -53,10 +55,12 @@ class SQLiteDataSource(object):
     }
     ID_COLUMN = 'rowid'
 
-    def __init__(self, db_file, table, update_table=None, config=None):
+    def __init__(self, db_file, table, update_table=None, config=None,
+                 ensure_selected_column=True):
         """Process database column info."""
         self.db_file = db_file
         self.table = table
+        self._ensure_selected_column = ensure_selected_column
         if update_table is not None:
             self.update_table = update_table
         else:
@@ -419,7 +423,7 @@ class SQLiteDataSource(object):
                         has_selected = True
                     else:
                         cols.append(col_dict)
-                if not has_selected:
+                if self._ensure_selected_column and not has_selected:
                     alter_sql = 'ALTER TABLE %s ADD __selected INTEGER' % (
                         self.update_table)
                     cursor.execute(alter_sql)
