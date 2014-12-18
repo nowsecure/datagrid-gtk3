@@ -153,7 +153,7 @@ class DataGridController(object):
         """Binds a data source to the datagrid.
 
         :param data_source: The data source to bind.
-        :type data_source: :class:`datagrid_gtk2.db.sqlite.SQLiteDataSource`
+        :type data_source: :class:`datagrid_gtk2.db.DataSource`
         """
         self.model = DataGridModel(data_source,
                                    self.get_full_path,

@@ -6,11 +6,8 @@ backends (eg. SQLite)
 """
 
 
-class EmptyDataSource:
-
-    """Data source that can be used when an empty data grid is required.
-    Also, an illustration of the data source's interface.
-    """
+class DataSource(object):
+    """Base class for data sources."""
 
     def __init__(self):
         self.rows = []
@@ -36,3 +33,7 @@ class EmptyDataSource:
 
     def update(self, params, ids=None):
         pass
+
+
+class EmptyDataSource(DataSource):
+    """Data source that can be used when an empty data grid is required."""

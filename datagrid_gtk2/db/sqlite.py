@@ -2,7 +2,6 @@
 import logging
 import sqlite3
 import struct
-
 from contextlib import closing
 
 from sqlalchemy import (
@@ -14,10 +13,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import DatabaseError
 
+from datagrid_gtk2.db import DataSource
+
 logger = logging.getLogger(__name__)
 
 
-class SQLiteDataSource(object):
+class SQLiteDataSource(DataSource):
 
     """SQLite data source especially for use with a `gtk.TreeModel`.
 
