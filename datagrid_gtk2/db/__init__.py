@@ -17,6 +17,7 @@ class EmptyDataSource:
         self.columns = []
         self.column_name_str = ''
         self.total_recs = 0
+        self.display_all = True
 
     def get_selected_columns(self):
         pass

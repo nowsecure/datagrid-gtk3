@@ -62,7 +62,6 @@ def main():
     column.add_attribute(cell, 'text', 0)
 
     table_store = gtk.ListStore(str)
-    # TODO: not all tables are working correctly when used as a data source
     for item in "album artist employee genre track".split():
         table_store.append([item])
     table_list.set_model(table_store)
@@ -72,7 +71,8 @@ def main():
         if iterator:
             table_name = model[iterator][0]
             controller.bind_datasource(SQLiteDataSource(
-                db_path, table_name, ensure_selected_column=False
+                db_path, table_name,
+                ensure_selected_column=False, display_all=True
             ))
     table_list.get_selection().connect("changed", select_table)
 

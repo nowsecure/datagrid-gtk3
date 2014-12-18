@@ -554,14 +554,16 @@ class DataGridView(gtk.TreeView):
 
         samples = self.model.rows[:self.SAMPLE_SIZE]
         for column_index, column in enumerate(self.model.columns):
-            display = True
             item = column['name']
-            display = (
-                # First column is "_selected" checkbox,
-                # second is invisible primary key ID
-                column_index > 1
-                and (self.model.display_columns is None
-                     or item in self.model.display_columns))
+            if self.model.data_source.display_all:
+                display = True
+            else:
+                display = (
+                    # First column is "_selected" checkbox,
+                    # second is invisible primary key ID
+                    column_index > 1
+                    and (self.model.display_columns is None
+                         or item in self.model.display_columns))
             if display:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:

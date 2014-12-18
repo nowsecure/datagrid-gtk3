@@ -42,6 +42,7 @@ class SQLiteDataSource(object):
         names, data types, transforms, etc.
     :param bool ensure_selected_column: Whether to ensure the presence of
         the __selected column.
+    :param bool display_all: Whether or not all columns should be displayed.
     """
 
     MAX_RECS = 100
@@ -56,11 +57,12 @@ class SQLiteDataSource(object):
     ID_COLUMN = 'rowid'
 
     def __init__(self, db_file, table, update_table=None, config=None,
-                 ensure_selected_column=True):
+                 ensure_selected_column=True, display_all=False):
         """Process database column info."""
         self.db_file = db_file
         self.table = table
         self._ensure_selected_column = ensure_selected_column
+        self.display_all = display_all
         if update_table is not None:
             self.update_table = update_table
         else:
