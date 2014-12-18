@@ -544,26 +544,22 @@ class DataGridView(gtk.TreeView):
 
     def _setup_columns(self):
         """Configure the column widgets in the view."""
-        # NOTE: assumption here is that col index 0 is _selected bool field
-        toggle_cell = gtk.CellRendererToggle()
-        toggle_cell.connect('toggled', self.on_toggle, 0)
-        col = gtk.TreeViewColumn('', toggle_cell, active=0)
-        self.append_column(col)
-        if not self.has_checkboxes:
-            col.set_visible(False)
+        if self.has_checkboxes:
+            # NOTE: assumption here is that col index 0 is _selected bool field
+            toggle_cell = gtk.CellRendererToggle()
+            toggle_cell.connect('toggled', self.on_toggle, 0)
+            col = gtk.TreeViewColumn('', toggle_cell, active=0)
+            self.append_column(col)
 
         samples = self.model.rows[:self.SAMPLE_SIZE]
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
-            if self.model.data_source.display_all:
-                display = True
-            else:
-                display = (
-                    # First column is "_selected" checkbox,
-                    # second is invisible primary key ID
-                    column_index > 1
-                    and (self.model.display_columns is None
-                         or item in self.model.display_columns))
+            display = (self.model.display_columns is None
+                       or item in self.model.display_columns)
+            if not self.model.data_source.display_all:
+                # First column is "_selected" checkbox,
+                # second is invisible primary key ID
+                display = display and column_index > 1
             if display:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:
@@ -902,7 +898,7 @@ class DataGridModel(gtk.GenericTreeModel):
 
     def on_get_column_type(self, index):
         """Return the type of a column in the model."""
-        if index == 0:  # __selected
+        if self.columns[index]["name"] == "__selected":
             return bool
         else:
             if self.columns[index]['transform'] in ['boolean', 'image']:
