@@ -44,6 +44,7 @@ class SQLiteDataSource(DataSource):
     :param bool ensure_selected_column: Whether to ensure the presence of
         the __selected column.
     :param bool display_all: Whether or not all columns should be displayed.
+    :param str query: Full custom query to be used instead of the table name.
     """
 
     MAX_RECS = 100
@@ -57,11 +58,13 @@ class SQLiteDataSource(DataSource):
     }
     ID_COLUMN = 'rowid'
 
-    def __init__(self, db_file, table, update_table=None, config=None,
-                 ensure_selected_column=True, display_all=False):
+    def __init__(self, db_file, table=None, update_table=None, config=None,
+                 ensure_selected_column=True, display_all=False, query=None):
         """Process database column info."""
+        assert table or query  # either table or query must be given
         self.db_file = db_file
-        self.table = table
+        self.table = table if table else "__CustomQueryTempView"
+        self.query = query
         self._ensure_selected_column = ensure_selected_column
         self.display_all = display_all
         if update_table is not None:
@@ -110,6 +113,7 @@ class SQLiteDataSource(DataSource):
             conn.create_function('rank', 1, rank)
             # TODO: ^^ only if search term in params
             with closing(conn.cursor()) as cursor:
+                self._ensure_temp_view(cursor)
                 bindings = []
                 where_sql = ''
                 order_sql = ''
@@ -203,6 +207,7 @@ class SQLiteDataSource(DataSource):
             conn.create_function('rank', 1, rank)
             # TODO: ^^ create this function only if search term in params
             with closing(conn.cursor()) as cursor:
+                self._ensure_temp_view(cursor)
                 cursor.execute(sql, bindings)
                 results = [row[0] for row in cursor.fetchall()]
         return results
@@ -225,6 +230,7 @@ class SQLiteDataSource(DataSource):
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = sqlite3.Row  # Access columns by name
             with closing(conn.cursor()) as cursor:
+                self._ensure_temp_view(cursor)
                 cursor.execute(sql_statement, (str(record_id),))
                 data = cursor.fetchone()
             # TODO log error if more than one
@@ -375,6 +381,19 @@ class SQLiteDataSource(DataSource):
             sql = 'WHERE %s' % sql_clauses[0]
         return (sql, params)
 
+    def _ensure_temp_view(self, cursor):
+        """If a custom query is defined, temporary view using that query
+        is used in place of a table name.
+        This makes sure that temporary view exists if required.
+
+        :param cursor: Cursor for the session where the view might be needed.
+        """
+        if self.query:
+            # create a temporary view for collecting column info
+            cursor.execute('CREATE TEMP VIEW IF NOT EXISTS %s AS %s' % (
+                self.table, self.query
+            ))
+
     def _get_columns(self):
         """Return a list of column information dicts.
 
@@ -396,6 +415,7 @@ class SQLiteDataSource(DataSource):
         cols = []
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
+                self._ensure_temp_view(cursor)
                 table_info_query = 'PRAGMA table_info(%s)' % self.table
                 cursor.execute(table_info_query)
                 rows = cursor.fetchall()
