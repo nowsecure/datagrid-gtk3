@@ -74,7 +74,7 @@ class SQLiteDataSource(DataSource):
         self.config = config
         self.rows = None
         self.columns = self._get_columns()
-        column_names = [col['name'] for col in self.columns]
+        column_names = ['"%s"' % col['name'] for col in self.columns]
         self.column_name_str = ', '.join(column_names)
         self.total_recs = None
 
