@@ -65,6 +65,8 @@ class SQLiteDataSource(DataSource):
         self.db_file = db_file
         self.table = table if table else "__CustomQueryTempView"
         self.query = query
+        if query:
+            logger.debug("Custom SQL: %s", query)
         self._ensure_selected_column = ensure_selected_column
         self.display_all = display_all
         if update_table is not None:
