@@ -104,8 +104,6 @@ class DataGridController(object):
         self.view = DataGridView(None, vscroll, has_checkboxes)
         self.container.grid_viewport.add(self.view)
 
-        self.bind_datasource(data_source)
-
         # select all checkbutton
         checkbutton_select_all = self.container.checkbutton_select_all
         if has_checkboxes:
@@ -148,6 +146,8 @@ class DataGridController(object):
         self.container.button_clear.connect('clicked', self.on_clear_clicked)
 
         self.container.grid_vbox.show_all()
+
+        self.bind_datasource(data_source)
 
     def bind_datasource(self, data_source):
         """Binds a data source to the datagrid.
