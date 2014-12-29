@@ -75,7 +75,7 @@ class SQLiteDataSource(DataSource):
             self.update_table = table
         self.config = config
         self.rows = None
-        self.columns = self._get_columns()
+        self.columns = self.get_columns()
         column_names = ['"%s"' % col['name'] for col in self.columns]
         self.column_name_str = ', '.join(column_names)
         self.total_recs = None
@@ -396,7 +396,7 @@ class SQLiteDataSource(DataSource):
                 self.table, self.query
             ))
 
-    def _get_columns(self):
+    def get_columns(self):
         """Return a list of column information dicts.
 
         Queries either the database ``PRAGMA`` for column information or
