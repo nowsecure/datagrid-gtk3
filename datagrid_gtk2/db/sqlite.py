@@ -126,7 +126,7 @@ class SQLiteDataSource(DataSource):
                             self.table, params['where'])
                     # construct ORDER BY clause
                     if 'order_by' in params:
-                        order_sql = order_sql + ' ORDER BY %s' % \
+                        order_sql = order_sql + ' ORDER BY "%s"' % \
                             params['order_by']
                         if 'desc' in params:
                             if params['desc'] is True:
