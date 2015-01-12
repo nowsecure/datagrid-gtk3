@@ -134,13 +134,13 @@ class DataGridController(object):
         self.date_start.connect('date_changed', self.on_date_change, 'start')
         # FIXME: ^^ use hyphen in signal name
         self.container.vbox_start_date.pack_start(
-            self.date_start, expand=False, fill=True)
+            self.date_start, expand=False, fill=True, padding=0)
         self.date_end = popupcal.DateEntry(self.container.window)
         self.date_end.set_editable(False)
         self.date_end.set_sensitive(False)
         self.date_end.connect('date_changed', self.on_date_change, 'end')
         self.container.vbox_end_date.pack_start(
-            self.date_end, expand=False, fill=True)
+            self.date_end, expand=False, fill=True, padding=0)
 
         # search widget
         self.container.entry_search.connect('activate', self.on_search_clicked)
@@ -211,7 +211,8 @@ class DataGridController(object):
                     active = (self.model.display_columns is None
                               or column['name'] in self.model.display_columns)
                     checkbutton.set_active(active)
-                    dialog.vbox.pack_start(checkbutton, True, True, 0)
+                    dialog.vbox.pack_start(
+                        checkbutton, expand=True, fill=True, padding=0)
                 checkbutton.connect(
                     'toggled',
                     self.on_column_checkbutton_toggled,
