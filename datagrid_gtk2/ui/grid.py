@@ -10,6 +10,7 @@ from gi.repository import (
     Gtk,
     Pango,
 )
+from pygtkcompat.generictreemodel import GenericTreeModel
 
 from . import popupcal
 from .uifile import UIFile
@@ -628,7 +629,7 @@ class DataGridView(Gtk.TreeView):
         return width
 
 
-class DataGridModel(Gtk.GenericTreeModel):
+class DataGridModel(GenericTreeModel):
 
     """Underlying model for data grid view.
 
@@ -643,12 +644,6 @@ class DataGridModel(Gtk.GenericTreeModel):
         strings in case `unicode(obj)` fails.
     :type decode_fallback: callable
     :param str encoding_hint: Encoding to use for rendering strings
-
-    NOTE: Gtk.GenericTreeModel is not available in GTK3; for porting, take a
-    look at the following links:
-
-    - https://developer.gnome.org/gtk3/stable/GtkTreeModel.html
-    - https://git.gnome.org/browse/pygobject/tree/demos/gtk-demo/demos/TreeView/treemodel_large.py  # noqa
 
     It may be  a question of changing parent class(es) and changing eg.
     ``on_get_flags`` to ``do_get_flags`` etc.
@@ -665,7 +660,7 @@ class DataGridModel(Gtk.GenericTreeModel):
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
         """Set up model."""
-        GObject.GObject.__init__(self)
+        super(DataGridModel, self).__init__()
         self.data_source = data_source
         self.get_media_callback = get_media_callback
         self.decode_fallback = decode_fallback
