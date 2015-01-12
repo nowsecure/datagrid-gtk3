@@ -375,7 +375,7 @@ class SQLiteDataSource(DataSource):
                 params.append(dic['param'])
 
         if not sql_clauses:
-            return ''
+            return ('', [])
 
         if len(sql_clauses) > 1:
             sql = 'WHERE %s' % (' AND '.join(sql_clauses))
