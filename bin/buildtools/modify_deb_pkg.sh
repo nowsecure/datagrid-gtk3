@@ -1,1 +1,1 @@
-cp bin/buildtools/debian/postinst deb_dist/datagrid-gtk2-*/debian/
+cp bin/buildtools/debian/postinst deb_dist/datagrid-gtk3-*/debian/

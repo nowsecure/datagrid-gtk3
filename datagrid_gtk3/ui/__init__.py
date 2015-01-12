@@ -3,8 +3,8 @@
 Usage::
 
     from gi.repository import Gtk
-    from datagrid-gtk2.ui.grid import DataGridContainer, DataGridController
-    from datagrid-gtk2.db.sqlite import SQLiteDataSource
+    from datagrid_gtk3.ui.grid import DataGridContainer, DataGridController
+    from datagrid_gtk3.db.sqlite import SQLiteDataSource
     win = Gtk.Window()
     datagrid_container = DataGridContainer(win)
     datagrid_source = SQLiteDataSource(

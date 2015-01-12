@@ -5,4 +5,4 @@ include README.rst
 include requirements.txt
 
 recursive-include *.so
-recursive-include datagrid-gtk2/data *
+recursive-include datagrid_gtk3/data *

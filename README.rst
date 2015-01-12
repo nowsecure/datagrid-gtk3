@@ -1,5 +1,5 @@
 =============
-datagrid-gtk2
+datagrid-gtk3
 =============
 
-MVC framework for working with the GTK2 TreeView widget.
+MVC framework for working with the GTK3 TreeView widget.

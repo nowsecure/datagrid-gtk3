@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Main module of the datagrid_gtk2 package, used to start an example."""
+"""Main module of the datagrid_gtk3 package, used to start an example."""
 
 import logging
 import sys
@@ -35,8 +35,8 @@ def setup_logging():
 
 
 def main():
-    """Example usage of the datagrid-gtk2 package."""
-    logger.info("Starting a datagrid-gtk2 example.")
+    """Example usage of the datagrid_gtk3 package."""
+    logger.info("Starting a datagrid_gtk3 example.")
 
     db_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                            os.path.pardir, 'example_data', 'chinook.sqlite')

@@ -31,7 +31,7 @@ clean-pyc:
 	find . -name '*~' -exec rm -f {} +
 
 lint:
-	flake8 datagrid-gtk2
+	flake8 datagrid_gtk3
 
 test:
 	python setup.py nosetests
@@ -40,15 +40,15 @@ test-unit:
 	python setup.py nosetests --exclude=functional
 
 coverage:
-	coverage run --source datagrid-gtk2 setup.py test
+	coverage run --source datagrid_gtk3 setup.py test
 	coverage report -m
 	coverage html
 	xdg-open htmlcov/index.html
 
 docs:
-	rm -f docs/datagrid-gtk2.rst
+	rm -f docs/datagrid_gtk3.rst
 	rm -f docs/modules.rst
-	sphinx-apidoc -o docs/api datagrid-gtk2  --force
+	sphinx-apidoc -o docs/api datagrid_gtk3  --force
 	$(MAKE) -C docs clean
 	$(MAKE) -C docs html
 	xdg-open docs/_build/html/index.html
@@ -76,8 +76,8 @@ deb-dist: clean
 	ls -l deb_dist
 
 virtualenv:
-	test -d $(WORKON_HOME)/datagrid-gtk2 || virtualenv $(WORKON_HOME)/datagrid-gtk2
-	. $(WORKON_HOME)/datagrid-gtk2/bin/activate; pip install -r requirements.txt -r test_requirements.txt
+	test -d $(WORKON_HOME)/datagrid-gtk3 || virtualenv $(WORKON_HOME)/datagrid-gtk3
+	. $(WORKON_HOME)/datagrid-gtk3/bin/activate; pip install -r requirements.txt -r test_requirements.txt
 
 virtualenv-gtk:
 	ln -sf /usr/lib/python2.7/dist-packages/{glib,gobject,cairo,gtk-2.0,pygtk.py,pygtk.pth} $(VIRTUAL_ENV)/lib/python2.7/site-packages

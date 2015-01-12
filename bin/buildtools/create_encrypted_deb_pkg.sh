@@ -36,7 +36,7 @@ python setup.py --command-packages=stdeb.command sdist_dsc
 if [[ -f $MODIFY_PKG_SCRIPT ]]; then
     ${MODIFY_PKG_SCRIPT}
 fi
-cd deb_dist/datagrid-gtk2-*
+cd deb_dist/datagrid-gtk3-*
 dpkg-buildpackage -uc -us
 
 # unpackage .deb pkg and modify it for codemeter encryption
@@ -44,9 +44,9 @@ dpkg-buildpackage -uc -us
 #   seem to have a need to introspect Python files, which is broken by our
 #   CodeMeter dependency -- how else to fix?
 echo "==> Processing package for CodeMeter encryption"
-BUILD_DIR="/tmp/datagrid-gtk2_build"
+BUILD_DIR="/tmp/datagrid-gtk3_build"
 cd $CUR_DIR
-DEB_NAME=`find ./deb_dist -type f -name "python-datagrid-gtk2*.deb" | xargs basename`
+DEB_NAME=`find ./deb_dist -type f -name "python-datagrid-gtk3*.deb" | xargs basename`
 rm -rf $BUILD_DIR
 mkdir $BUILD_DIR
 echo "==> Processing package: ${DEB_NAME}"
@@ -57,16 +57,16 @@ dpkg-deb -e $DEB_NAME
 rm $DEB_NAME
 cd $BUILD_DIR/usr/lib/python2.7/dist-packages
 # remove pyshared-related items
-find datagrid-gtk2 -type l -exec bash -c 'ln -f "$(readlink -m "$0")" "$0"' {} \;
-find datagrid-gtk2*.egg-info -type l -exec bash -c 'ln -f "$(readlink -m "$0")" "$0"' {} \;
+find datagrid-gtk3 -type l -exec bash -c 'ln -f "$(readlink -m "$0")" "$0"' {} \;
+find datagrid-gtk3*.egg-info -type l -exec bash -c 'ln -f "$(readlink -m "$0")" "$0"' {} \;
 rm -rf $BUILD_DIR/usr/share/pyshared
-rm -rf $BUILD_DIR/usr/lib/python2.7/dist-packages/datagrid-gtk2*.egg-info/requires.txt
+rm -rf $BUILD_DIR/usr/lib/python2.7/dist-packages/datagrid-gtk3*.egg-info/requires.txt
 rm -rf $BUILD_DIR/DEBIAN/md5sums
 # compile and encrypt source
-find datagrid-gtk2 -type f -name "*.pyc" -exec rm {} \;
-python -m compileall datagrid-gtk2
-find datagrid-gtk2 -type f -name "*.py" -exec rm {} \;
-find datagrid-gtk2 -type f -name "*.pyc" -exec pycEncrypt e f${FIRM_CODE} p${PRODUCT_CODE} R${MEM_LOCATION} ${KEY_PATH} {} {} \;
+find datagrid-gtk3 -type f -name "*.pyc" -exec rm {} \;
+python -m compileall datagrid-gtk3
+find datagrid-gtk3 -type f -name "*.py" -exec rm {} \;
+find datagrid-gtk3 -type f -name "*.pyc" -exec pycEncrypt e f${FIRM_CODE} p${PRODUCT_CODE} R${MEM_LOCATION} ${KEY_PATH} {} {} \;
 
 # rebuild package
 cd $BUILD_DIR
