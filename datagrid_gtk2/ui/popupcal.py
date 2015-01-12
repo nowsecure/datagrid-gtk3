@@ -225,7 +225,8 @@ class DateEntry(Gtk.Entry):
         :type event: :class:`Gdk.Event`
 
         """
-        if event.button == 1 and event.type == Gdk.EventType.BUTTON_PRESS:
+        if (event.button == Gdk.BUTTON_PRIMARY and
+                event.type == Gdk.EventType.BUTTON_PRESS):
             text = super(DateEntry, self).get_text()
             if text is None or len(text.strip()) == 0:
                 # we don't want to emit a signal as the popup will do so when
