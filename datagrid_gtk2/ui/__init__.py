@@ -2,10 +2,10 @@
 
 Usage::
 
-    import gtk
+    from gi.repository import Gtk
     from datagrid-gtk2.ui.grid import DataGridContainer, DataGridController
     from datagrid-gtk2.db.sqlite import SQLiteDataSource
-    win = gtk.Window()
+    win = Gtk.Window()
     datagrid_container = DataGridContainer(win)
     datagrid_source = SQLiteDataSource(
         '/path/to/sqlite.db',

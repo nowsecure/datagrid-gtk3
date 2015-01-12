@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class SQLiteDataSource(DataSource):
 
-    """SQLite data source especially for use with a `gtk.TreeModel`.
+    """SQLite data source especially for use with a `Gtk.TreeModel`.
 
     Provides a SQLite backend for providing data to a
     :class:`datagrid_gtk2.ui.grid.DataGridModel` instance, which is

@@ -6,11 +6,12 @@ import logging
 import sys
 import os
 
-import pygtk
-pygtk.require('2.0')
-
-import gtk
-import gobject
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import (
+    Gtk,
+    GObject,
+)
 
 from ui.grid import DataGridContainer, DataGridController
 from db.sqlite import SQLiteDataSource
@@ -40,7 +41,7 @@ def main():
     db_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                            os.path.pardir, 'example_data', 'chinook.sqlite')
 
-    win = gtk.Window()
+    win = Gtk.Window()
     datagrid_container = DataGridContainer(win)
     controller = DataGridController(datagrid_container,
                                     EmptyDataSource(),
@@ -48,20 +49,20 @@ def main():
     datagrid_container.grid_vbox.reparent(win)
 
     win.set_default_size(600, 400)
-    win.connect("delete-event", lambda *args: gtk.main_quit())
+    win.connect("delete-event", lambda *args: Gtk.main_quit())
     win.show()
 
-    tables = gtk.Window()
+    tables = Gtk.Window()
     tables.set_title("Choose a table")
 
-    table_list = gtk.TreeView()
-    column = gtk.TreeViewColumn("")
+    table_list = Gtk.TreeView()
+    column = Gtk.TreeViewColumn("")
     table_list.append_column(column)
-    cell = gtk.CellRendererText()
+    cell = Gtk.CellRendererText()
     column.pack_start(cell, True)
     column.add_attribute(cell, 'text', 0)
 
-    table_store = gtk.ListStore(str)
+    table_store = Gtk.ListStore(str)
     for item in "album artist employee genre track".split():
         table_store.append([item])
     table_list.set_model(table_store)
@@ -78,9 +79,9 @@ def main():
 
     tables.add(table_list)
     tables.set_default_size(300, 400)
-    gobject.idle_add(tables.show_all)
+    GObject.idle_add(tables.show_all)
 
-    gtk.main()
+    Gtk.main()
 
 
 if __name__ == '__main__':
