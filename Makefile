@@ -80,4 +80,4 @@ virtualenv:
 	. $(WORKON_HOME)/datagrid-gtk3/bin/activate; pip install -r requirements.txt -r test_requirements.txt
 
 virtualenv-gtk:
-	ln -sf /usr/lib/python2.7/dist-packages/{glib,gobject,cairo,gtk-2.0,pygtk.py,pygtk.pth} $(VIRTUAL_ENV)/lib/python2.7/site-packages
+	ln -sf /usr/lib/python2.7/dist-packages/{pygtkcompat,gi} $(VIRTUAL_ENV)/lib/python2.7/site-packages
