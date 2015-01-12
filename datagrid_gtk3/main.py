@@ -9,8 +9,9 @@ import os
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import (
-    Gtk,
     GObject,
+    Gdk,
+    Gtk,
 )
 
 from ui.grid import DataGridContainer, DataGridController
@@ -37,6 +38,24 @@ def setup_logging():
 def main():
     """Example usage of the datagrid_gtk3 package."""
     logger.info("Starting a datagrid_gtk3 example.")
+
+    # The code is here to show rules hint on the treeview for our tests. This
+    # is something that, on gtk3, the theme decides how (and if) to display it.
+    # Since it's on main, it will only show on our testing code. This is
+    # something that the application needs to decide.
+    style_provider = Gtk.CssProvider()
+    style_provider.load_from_data("""
+        GtkTreeView row:nth-child(even) {
+            background-color: shade(@base_color, 1.0);
+        }
+        GtkTreeView row:nth-child(odd) {
+            background-color: shade(@base_color, 0.95);
+        }
+    """)
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(),
+        style_provider,
+        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
     db_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                            os.path.pardir, 'example_data', 'chinook.sqlite')
