@@ -783,6 +783,12 @@ class DataGridModel(GenericTreeModel):
             else:
                 return None
 
+        # FIXME: At the end, if the string is in unicode, it needs to be
+        # converted to str or else gtk won't display it on the treeview.
+        # Maybe we should handle this better above?
+        if isinstance(value, unicode):
+            value = str(value.encode(self.encoding_hint))
+
         return value
 
     def set_value(self, itr, column, value):
