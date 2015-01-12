@@ -3,8 +3,8 @@ import os
 
 from datetime import datetime
 
-from glib import GError
 from gi.repository import (
+    GLib,
     GObject,
     GdkPixbuf,
     Gtk,
@@ -842,7 +842,7 @@ class DataGridModel(Gtk.GenericTreeModel):
                 width = int(float(24 * orig_width) / orig_height)
                 pic = pixbuf.scale_simple(width, 24, GdkPixbuf.InterpType.BILINEAR)
                 is_image = True
-            except GError:
+            except GLib.GError:
                 is_image = False
         if not is_image:
             file_ = 'icons/binary.png'
