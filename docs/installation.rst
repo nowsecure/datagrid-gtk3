@@ -4,9 +4,9 @@ Installation
 
 At the command line::
 
-    $ easy_install datagrid-gtk2
+    $ easy_install datagrid-gtk3
 
 Or, if you have virtualenvwrapper installed::
 
-    $ mkvirtualenv datagrid-gtk2
-    $ pip install datagrid-gtk2
+    $ mkvirtualenv datagrid-gtk3
+    $ pip install datagrid-gtk3

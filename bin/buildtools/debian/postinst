@@ -9,4 +9,4 @@ fi
 # End automatically added section
 
 # use custom CodeMeter-enabled python interpeter
-sudo sed -i "s/\#\!\/usr\/bin\/python/\#\!\/usr\/local\/bin\/python.via/g" /usr/bin/datagrid-gtk2
+sudo sed -i "s/\#\!\/usr\/bin\/python/\#\!\/usr\/local\/bin\/python.via/g" /usr/bin/datagrid-gtk3

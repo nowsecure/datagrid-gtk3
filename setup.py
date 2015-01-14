@@ -70,7 +70,7 @@ def recurse_data_files(path):
 
 
 setup(
-    name='datagrid-gtk2',
+    name='datagrid-gtk3',
     version='0.1.0',
     description='MVC framework for working with the GTK2 TreeView widget.',
     long_description=readme + '\n\n' + history,
@@ -78,9 +78,9 @@ setup(
     author_email='info@viaforensics.com',
     url='https://viaforensics.com',
     packages=find_packages(),
-    package_dir={'datagrid_gtk2':
-                 'datagrid_gtk2'},
-    package_data={'datagrid_gtk2': recurse_data_files('data')},
+    package_dir={'datagrid_gtk3':
+                 'datagrid_gtk3'},
+    package_data={'datagrid_gtk3': recurse_data_files('data')},
     include_package_data=True,
     # data_files=[('/destination/path', ['file1', file2']),]
     # NOTE: ^^^ any files that need to be installed outside the pkg dir
@@ -88,11 +88,11 @@ setup(
     install_requires=requirements,
     dependency_links=dependency_links,
     zip_safe=False,
-    keywords='datagrid-gtk2',
+    keywords='datagrid-gtk3',
     classifiers=[
         'Natural Language :: English',
         "Programming Language :: Python :: 2",
     ],
-    test_suite='datagrid_gtk2.tests',
+    test_suite='datagrid_gtk3.tests',
     tests_require=test_requirements
 )

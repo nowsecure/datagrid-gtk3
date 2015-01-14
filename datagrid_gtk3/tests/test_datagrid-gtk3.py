@@ -7,9 +7,9 @@ import unittest
 
 from mock import MagicMock as Mock
 
-from datagrid_gtk2.db import sqlite
-from datagrid_gtk2.tests.data import create_db
-from datagrid_gtk2.ui.grid import (
+from datagrid_gtk3.db import sqlite
+from datagrid_gtk3.tests.data import create_db
+from datagrid_gtk3.ui.grid import (
     DataGridContainer,
     DataGridController,
     DataGridModel

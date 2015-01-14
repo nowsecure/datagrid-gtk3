@@ -1,8 +1,11 @@
 """Popup calendar widget module."""
 import time
 
-import gobject
-import gtk
+from gi.repository import (
+    GObject,
+    Gdk,
+    Gtk,
+)
 
 
 class InvalidDate(Exception):
@@ -23,17 +26,17 @@ class InvalidDate(Exception):
         return self.message
 
 
-class DateEntry(gtk.Entry):
+class DateEntry(Gtk.Entry):
 
     """Clickable text box that launches a calendar for populating with a date.
 
     :param parent_window: Main window of the application
-    :type parent_window: class:`gtk.Window`
+    :type parent_window: class:`Gtk.Window`
 
     """
 
     __gsignals__ = dict(
-        date_changed=(gobject.SIGNAL_RUN_FIRST, gobject.TYPE_NONE, ()))
+        date_changed=(GObject.SignalFlags.RUN_FIRST, None, ()))
 
     DEFAULT_DATE_FORMAT = '%e-%b-%Y'
 
@@ -66,7 +69,7 @@ class DateEntry(gtk.Entry):
         self.connect('focus_out_event', self.on_focus_out_event)
         self.connect('button_press_event', self.on_button_press_event)
         self.connect('activate', lambda widget: widget.get_toplevel()
-                     .child_focus(gtk.DIR_TAB_FORWARD))
+                     .child_focus(Gtk.DIR_TAB_FORWARD))
         assert parent_window, 'Parent window needed'
         self.parent_window = parent_window
         self.set_width_chars(11)
@@ -77,14 +80,14 @@ class DateEntry(gtk.Entry):
     def popup_calendar(self):
         """Display the calendar dialog."""
         self.calendar_dialog = True
-        dialog = gtk.Dialog(
+        dialog = Gtk.Dialog(
             None, self.parent_window,
-            gtk.DIALOG_DESTROY_WITH_PARENT | gtk.DIALOG_MODAL,
-            (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-             gtk.STOCK_OK, gtk.RESPONSE_OK)
+            Gtk.DialogFlags.DESTROY_WITH_PARENT | Gtk.DialogFlags.MODAL,
+            (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+             Gtk.STOCK_OK, Gtk.ResponseType.OK)
         )
-        # self.dialog.set_position(gtk.WIN_POS_MOUSE)
-        calendar = gtk.Calendar()
+        # self.dialog.set_position(Gtk.WindowPosition.MOUSE)
+        calendar = Gtk.Calendar()
         dialog.vbox.pack_start(calendar, expand=True, fill=True, padding=0)
         dialog.set_decorated(False)
         dialog.action_area.hide()
@@ -98,7 +101,7 @@ class DateEntry(gtk.Entry):
             calendar.select_day(timestamp[2])
         dialog.show_all()
         result = dialog.run()
-        if result == gtk.RESPONSE_OK:
+        if result == Gtk.ResponseType.OK:
             self.on_day_selected(calendar, dialog)
         else:
             dialog.destroy()
@@ -217,12 +220,13 @@ class DateEntry(gtk.Entry):
         """Signal handler to launch calendar widget.
 
         :param widget: the widget that called the event
-        :type widget: class:`gtk.Widget`
+        :type widget: class:`Gtk.Widget`
         :param event: button press event
-        :type event: :class:`gtk.gdk.Event`
+        :type event: :class:`Gdk.Event`
 
         """
-        if event.button == 1 and event.type == gtk.gdk.BUTTON_PRESS:
+        if (event.button == Gdk.BUTTON_PRIMARY and
+                event.type == Gdk.EventType.BUTTON_PRESS):
             text = super(DateEntry, self).get_text()
             if text is None or len(text.strip()) == 0:
                 # we don't want to emit a signal as the popup will do so when
@@ -239,9 +243,9 @@ class DateEntry(gtk.Entry):
         Display error dialog if it's not possible to parse date.
 
         :param _widget: The widget that emitted the focus_out_event signal
-        :type _widget: gtk.Entry
+        :type _widget: Gtk.Entry
         :param _event: The event that triggered the signal
-        :type _event: gtk.gdk.Event
+        :type _event: Gdk.Event
 
         """
         text = super(DateEntry, self).get_text()
@@ -251,11 +255,11 @@ class DateEntry(gtk.Entry):
 
         timestamp = self.check_formats(text)
         if timestamp is None and not self.calendar_dialog:
-            dialog = gtk.MessageDialog(
+            dialog = Gtk.MessageDialog(
                 self.parent_window,
-                gtk.DIALOG_DESTROY_WITH_PARENT | gtk.DIALOG_MODAL,
-                gtk.MESSAGE_ERROR,
-                gtk.BUTTONS_CANCEL,
+                Gtk.DialogFlags.DESTROY_WITH_PARENT | Gtk.DialogFlags.MODAL,
+                Gtk.MessageType.ERROR,
+                Gtk.ButtonsType.CANCEL,
                 'Unknown date format\n%s' % (text))
             dialog.connect('response', self.on_dialog_response)
             dialog.show()
@@ -264,9 +268,9 @@ class DateEntry(gtk.Entry):
         """Update text when day is selected or OK button in dialog is clicked.
 
         :param widget: The calendar in which the date was selected
-        :type widget: gtk.Calendar
+        :type widget: Gtk.Calendar
         :param dialog: A dialog that is used to display the calendar widget
-        :type dialog: gtk.Dialog
+        :type dialog: Gtk.Dialog
 
         """
         (year, month, day) = widget.get_date()
@@ -281,10 +285,10 @@ class DateEntry(gtk.Entry):
         """Close error message dialog and grab fous on main one.
 
         :param dialog: The dialog used to display an error message
-        :type dialog: gtk.Dialog
+        :type dialog: Gtk.Dialog
         :param _response: The dialog response code
-        :type _response: gtk.RESPONSE_*
+        :type _response: Gtk.ResponseType.*
 
         """
-        gobject.timeout_add(100, self.grab_focus)
+        GObject.timeout_add(100, self.grab_focus)
         dialog.destroy()

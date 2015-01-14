@@ -13,17 +13,17 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import DatabaseError
 
-from datagrid_gtk2.db import DataSource
+from datagrid_gtk3.db import DataSource
 
 logger = logging.getLogger(__name__)
 
 
 class SQLiteDataSource(DataSource):
 
-    """SQLite data source especially for use with a `gtk.TreeModel`.
+    """SQLite data source especially for use with a `Gtk.TreeModel`.
 
     Provides a SQLite backend for providing data to a
-    :class:`datagrid_gtk2.ui.grid.DataGridModel` instance, which is
+    :class:`datagrid_gtk3.ui.grid.DataGridModel` instance, which is
     a GTK `TreeModel`.
 
     Optional table configuration example::
@@ -375,7 +375,7 @@ class SQLiteDataSource(DataSource):
                 params.append(dic['param'])
 
         if not sql_clauses:
-            return ''
+            return ('', [])
 
         if len(sql_clauses) > 1:
             sql = 'WHERE %s' % (' AND '.join(sql_clauses))

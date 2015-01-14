@@ -3,10 +3,14 @@ import os
 
 from datetime import datetime
 
-from glib import GError
-import gobject
-import gtk
-import pango
+from gi.repository import (
+    GLib,
+    GObject,
+    GdkPixbuf,
+    Gtk,
+    Pango,
+)
+from pygtkcompat.generictreemodel import GenericTreeModel
 
 from . import popupcal
 from .uifile import UIFile
@@ -26,7 +30,7 @@ class DataGridContainer(UIFile):
 
     :param window: Window for main launching application -- needed for dialog
         interaction
-    :type window: :class:`gtk.Window`
+    :type window: :class:`Gtk.Window`
     """
 
     UI_FNAME = os.path.join(
@@ -66,11 +70,11 @@ class DataGridController(object):
 
     """Sets up UI controls to manipulate datagrid model/view.
 
-    :param container: ``UIFile`` instance providing ``gtk.Box`` and
+    :param container: ``UIFile`` instance providing ``Gtk.Box`` and
         access to GTK widgets for controller
     :type container: :class:`DataGridContainer`
     :param data_source: Database backend instance
-    :type data_source: :class:`datagrid_gtk2.db.sqlite.SQLiteDataSource`
+    :type data_source: :class:`datagrid_gtk3.db.sqlite.SQLiteDataSource`
     :param selected_record_callback:
         Function to execute when a record is selected in the grid
     :type selected_record_callback: function
@@ -130,13 +134,13 @@ class DataGridController(object):
         self.date_start.connect('date_changed', self.on_date_change, 'start')
         # FIXME: ^^ use hyphen in signal name
         self.container.vbox_start_date.pack_start(
-            self.date_start, expand=False, fill=True)
+            self.date_start, expand=False, fill=True, padding=0)
         self.date_end = popupcal.DateEntry(self.container.window)
         self.date_end.set_editable(False)
         self.date_end.set_sensitive(False)
         self.date_end.connect('date_changed', self.on_date_change, 'end')
         self.container.vbox_end_date.pack_start(
-            self.date_end, expand=False, fill=True)
+            self.date_end, expand=False, fill=True, padding=0)
 
         # search widget
         self.container.entry_search.connect('activate', self.on_search_clicked)
@@ -153,7 +157,7 @@ class DataGridController(object):
         """Binds a data source to the datagrid.
 
         :param data_source: The data source to bind.
-        :type data_source: :class:`datagrid_gtk2.db.DataSource`
+        :type data_source: :class:`datagrid_gtk3.db.DataSource`
         """
         self.model = DataGridModel(data_source,
                                    self.get_full_path,
@@ -161,7 +165,7 @@ class DataGridController(object):
         self.model.connect('data-loaded', self.on_data_loaded)
         self.view.model = self.model
 
-        liststore_date_cols = gtk.ListStore(str, str)
+        liststore_date_cols = Gtk.ListStore(str, str)
         if self.model.datetime_columns:
             self.date_start.set_sensitive(True)
             self.date_end.set_sensitive(True)
@@ -175,7 +179,7 @@ class DataGridController(object):
             del old_model
         combox_date_cols.set_model(liststore_date_cols)
         if not combox_date_cols.get_cells():
-            cell = gtk.CellRendererText()
+            cell = Gtk.CellRendererText()
             combox_date_cols.pack_start(cell, True)
             combox_date_cols.add_attribute(cell, 'text', 1)
             combox_date_cols.set_active(0)
@@ -192,22 +196,23 @@ class DataGridController(object):
         """Show checkbox list of columns to display.
 
         :param widget: the ToggleButton that launches the list
-        :type widget: :class:`gtk.ToggleButton`
+        :type widget: :class:`Gtk.ToggleButton`
         """
         if widget.get_active():
-            dialog = gtk.Dialog(
+            dialog = Gtk.Dialog(
                 None, self.container.window,
-                gtk.DIALOG_DESTROY_WITH_PARENT | gtk.DIALOG_MODAL,
-                (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
-                 gtk.STOCK_OK, gtk.RESPONSE_OK)
+                Gtk.DialogFlags.DESTROY_WITH_PARENT | Gtk.DialogFlags.MODAL,
+                (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                 Gtk.STOCK_OK, Gtk.ResponseType.OK)
             )
             for column in self.model.columns:
-                checkbutton = gtk.CheckButton(column['display'])
+                checkbutton = Gtk.CheckButton(column['display'])
                 if not column['name'].startswith('__'):
                     active = (self.model.display_columns is None
                               or column['name'] in self.model.display_columns)
                     checkbutton.set_active(active)
-                    dialog.vbox.pack_start(checkbutton)
+                    dialog.vbox.pack_start(
+                        checkbutton, expand=True, fill=True, padding=0)
                 checkbutton.connect(
                     'toggled',
                     self.on_column_checkbutton_toggled,
@@ -216,7 +221,7 @@ class DataGridController(object):
             dialog.action_area.hide()
             dialog.show_all()
             result = dialog.run()
-            if result == gtk.RESPONSE_OK:
+            if result == Gtk.ResponseType.OK:
                 self.model.data_source.update_selected_columns(
                     self.model.display_columns
                 )
@@ -232,7 +237,7 @@ class DataGridController(object):
         """Set the list of columns to display based on column checkboxes.
 
         :param widget: checkbox widget for selected/deselected column
-        :type widget: :class:`gtk.CheckButton`
+        :type widget: :class:`Gtk.CheckButton`
         :param str name: name of the column to add/remove from list
         """
         if self.model.display_columns is None:
@@ -249,7 +254,7 @@ class DataGridController(object):
         """Get the data for a selected record and run optional callback.
 
         :param view: The treeview containing the row
-        :type view: gtk.TreeView
+        :type view: Gtk.TreeView
 
         """
         selection = view.get_selection()
@@ -277,7 +282,7 @@ class DataGridController(object):
         """Select all records in current recordset and update model/view.
 
         :param checkbutton: "Select all" checkbutton
-        :type: :class:`gtk.CheckButton`
+        :type: :class:`Gtk.CheckButton`
 
         """
         where_params = {}
@@ -296,7 +301,7 @@ class DataGridController(object):
         """Execute the full-text search for given keyword.
 
         :param widget: The widget that called the event
-        :type widget: :class:`gtk.Widget`
+        :type widget: :class:`Gtk.Widget`
         """
         search = self.container.entry_search.get_text()
         update_dict = {
@@ -311,7 +316,7 @@ class DataGridController(object):
         """Refresh the view with chosen date range.
 
         :param widget: The widget that called the event
-        :type widget: :class:`gtk.Widget`
+        :type widget: :class:`Gtk.Widget`
         :param data: Arbitrary data passed by widget.
         :data type: None
         """
@@ -346,7 +351,7 @@ class DataGridController(object):
         """Clear the UI controls and refresh the view to original table.
 
         :param checkbutton: The widget that called the event
-        :type checkbutton: :class:`gtk.CheckButton`
+        :type checkbutton: :class:`Gtk.CheckButton`
         """
         self.date_start.set_date(None)
         self.date_end.set_date(None)
@@ -405,14 +410,14 @@ class DataGridController(object):
         self.view.set_result(self.view.active_params)
 
 
-class DataGridView(gtk.TreeView):
+class DataGridView(Gtk.TreeView):
 
-    """A ``gtk.TreeView`` for displaying data from a ``DataGridModel``.
+    """A ``Gtk.TreeView`` for displaying data from a ``DataGridModel``.
 
     :param model: The model providing the tabular data for the grid
     :type model: :class:`DataGridModel`
     :param vscroll: List of keys to delete from ``where`` parameters
-    :type vscroll: :class:`gtk.Adjustment`
+    :type vscroll: :class:`Gtk.Adjustment`
     :param bool has_checkboxes: Whether record rows have a checkbox
 
     """
@@ -424,7 +429,7 @@ class DataGridView(gtk.TreeView):
 
     def __init__(self, model, vscroll, has_checkboxes=True):
         """Set the model and setup scroll bar."""
-        gtk.TreeView.__init__(self)
+        super(DataGridView, self).__init__()
         self.model = model
         self.has_checkboxes = has_checkboxes
         vscroll.connect('value-changed', self.on_scrolled)
@@ -468,7 +473,7 @@ class DataGridView(gtk.TreeView):
         old_model = self.get_model()
         if old_model:
             del old_model
-        model = gtk.ListStore(int)
+        model = Gtk.ListStore(int)
         self.set_model(model)
         while self.get_columns():
             col = self.get_column(0)
@@ -485,7 +490,7 @@ class DataGridView(gtk.TreeView):
         """Load new records upon scroll to end of visible rows.
 
         :param vadj: Adjustment widget associated with vertical scrollbar
-        :type vadj: :class:`gtk.Adjustment`
+        :type vadj: :class:`Gtk.Adjustment`
         """
         scrolled_bottom = (
             vadj.get_value() == (vadj.get_upper() - vadj.get_page_size())
@@ -502,7 +507,7 @@ class DataGridView(gtk.TreeView):
         """Toggle row selected checkbox, and update the model.
 
         :param cell: The toggle renderer widget
-        :type cell: :class:`gtk.CellRendererToggle`
+        :type cell: :class:`Gtk.CellRendererToggle`
         :param int path: int representing the row in the view
         :param int col_index: The column the toggle widget is in
 
@@ -516,7 +521,7 @@ class DataGridView(gtk.TreeView):
         """Sort the records by the given column.
 
         :param widget: The widget of the column being sorted
-        :type widget: :class:`gtk.TreeViewColumn`
+        :type widget: :class:`Gtk.TreeViewColumn`
         :param column: The column name being sorted, used for query construct
         :type column: str
 
@@ -526,14 +531,14 @@ class DataGridView(gtk.TreeView):
             # remove sort indicators from inactive cols
             col.set_sort_indicator(False)
         widget.set_sort_indicator(True)
-        if sort_order == gtk.SORT_ASCENDING:
-            new_sort_order = gtk.SORT_DESCENDING
+        if sort_order == Gtk.SortType.ASCENDING:
+            new_sort_order = Gtk.SortType.DESCENDING
         else:
-            new_sort_order = gtk.SORT_ASCENDING
+            new_sort_order = Gtk.SortType.ASCENDING
         widget.set_sort_order(new_sort_order)
         self.active_sort_column = column
         self.active_sort_column_order = new_sort_order
-        desc = sort_order == gtk.SORT_DESCENDING
+        desc = sort_order == Gtk.SortType.DESCENDING
         self.active_params.update({'order_by': column, 'desc': desc})
         self.reset()
         self.set_result(self.active_params)
@@ -546,9 +551,9 @@ class DataGridView(gtk.TreeView):
         """Configure the column widgets in the view."""
         if self.has_checkboxes:
             # NOTE: assumption here is that col index 0 is _selected bool field
-            toggle_cell = gtk.CellRendererToggle()
+            toggle_cell = Gtk.CellRendererToggle()
             toggle_cell.connect('toggled', self.on_toggle, 0)
-            col = gtk.TreeViewColumn('', toggle_cell, active=0)
+            col = Gtk.TreeViewColumn('', toggle_cell, active=0)
             self.append_column(col)
 
         samples = self.model.rows[:self.SAMPLE_SIZE]
@@ -563,19 +568,19 @@ class DataGridView(gtk.TreeView):
             if display:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:
-                    renderer = gtk.CellRendererPixbuf()
+                    renderer = Gtk.CellRendererPixbuf()
                     cell_renderer_kwargs = {'pixbuf': column_index}
                 else:
-                    renderer = gtk.CellRendererText()
-                    renderer.set_property('ellipsize', pango.ELLIPSIZE_END)
+                    renderer = Gtk.CellRendererText()
+                    renderer.set_property('ellipsize', Pango.EllipsizeMode.END)
                     cell_renderer_kwargs = {'text': column_index}
                 lbl = '%s' % (item_display.replace('_', '__'),)
-                col = gtk.TreeViewColumn(lbl, renderer, **cell_renderer_kwargs)
+                col = Gtk.TreeViewColumn(lbl, renderer, **cell_renderer_kwargs)
                 col.connect('clicked', self.on_tvcol_clicked, item)
                 col.set_resizable(True)
                 col.set_fixed_width(
                     self._get_best_column_width(column_index, samples))
-                col.set_sizing(gtk.TREE_VIEW_COLUMN_FIXED)
+                col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
                 if item == self.active_sort_column:
                     col.set_sort_indicator(True)
                     col.set_sort_order(self.active_sort_column_order)
@@ -625,7 +630,7 @@ class DataGridView(gtk.TreeView):
         return width
 
 
-class DataGridModel(gtk.GenericTreeModel):
+class DataGridModel(GenericTreeModel):
 
     """Underlying model for data grid view.
 
@@ -633,7 +638,7 @@ class DataGridModel(gtk.GenericTreeModel):
     store such as a SQLite database table.
 
     :param data_source: Persistent data source to populate model
-    :type data_source: :class:`datagrid_gtk2.db.sqlite.SQLiteDataSource`
+    :type data_source: :class:`datagrid_gtk3.db.sqlite.SQLiteDataSource`
     :param get_media_callback: Function to retrieve media file
     :type get_media_callback: callable
     :param decode_fallback: Callable for converting objects to
@@ -641,19 +646,13 @@ class DataGridModel(gtk.GenericTreeModel):
     :type decode_fallback: callable
     :param str encoding_hint: Encoding to use for rendering strings
 
-    NOTE: gtk.GenericTreeModel is not available in GTK3; for porting, take a
-    look at the following links:
-
-    - https://developer.gnome.org/gtk3/stable/GtkTreeModel.html
-    - https://git.gnome.org/browse/pygobject/tree/demos/gtk-demo/demos/TreeView/treemodel_large.py  # noqa
-
     It may be  a question of changing parent class(es) and changing eg.
     ``on_get_flags`` to ``do_get_flags`` etc.
 
     """
 
     __gsignals__ = {
-        'data-loaded': (gobject.SIGNAL_RUN_FIRST, None, (object,))
+        'data-loaded': (GObject.SignalFlags.RUN_FIRST, None, (object,))
     }
 
     MIN_TIMESTAMP = 0  # 1970
@@ -662,7 +661,7 @@ class DataGridModel(gtk.GenericTreeModel):
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
         """Set up model."""
-        gtk.GenericTreeModel.__init__(self)
+        super(DataGridModel, self).__init__()
         self.data_source = data_source
         self.get_media_callback = get_media_callback
         self.decode_fallback = decode_fallback
@@ -784,13 +783,19 @@ class DataGridModel(gtk.GenericTreeModel):
             else:
                 return None
 
+        # FIXME: At the end, if the string is in unicode, it needs to be
+        # converted to str or else gtk won't display it on the treeview.
+        # Maybe we should handle this better above?
+        if isinstance(value, unicode):
+            value = str(value.encode(self.encoding_hint))
+
         return value
 
     def set_value(self, itr, column, value):
         """Set the value in the model and update the data source with it.
 
         :param itr: ``TreeIter`` object representing the current row
-        :type itr: :class:`gtk.TreeIter`
+        :type itr: :class:`Gtk.TreeIter`
         :param int column: Column index for value
         :param value: Update the row/column to this value
         :type value: str or int or bool or None
@@ -811,13 +816,13 @@ class DataGridModel(gtk.GenericTreeModel):
 
         :param bool value: True or False
         """
-        img = gtk.Image()
+        img = Gtk.Image()
         if value:
-            icon = gtk.STOCK_YES
+            icon = Gtk.STOCK_YES
         else:
             # NOTE: should be STOCK_NO but looks crappy in Lubuntu
-            icon = gtk.STOCK_CANCEL
-        pixbuf = img.render_icon(icon, gtk.ICON_SIZE_MENU)
+            icon = Gtk.STOCK_CANCEL
+        pixbuf = img.render_icon(icon, Gtk.IconSize.MENU)
         return pixbuf
 
     def _image_transform(self, value):
@@ -831,19 +836,19 @@ class DataGridModel(gtk.GenericTreeModel):
             #   with large recordsets, use file_ = 'icons/image.png' if so
             # TODO: refactor image scaling to its own utility function
             try:
-                pixbuf = gtk.gdk.pixbuf_new_from_file(
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(
                     self.get_media_callback(value[7:])
                 )
                 orig_width = pixbuf.get_width()
                 orig_height = pixbuf.get_height()
                 width = int(float(24 * orig_width) / orig_height)
-                pic = pixbuf.scale_simple(width, 24, gtk.gdk.INTERP_BILINEAR)
+                pic = pixbuf.scale_simple(width, 24, GdkPixbuf.InterpType.BILINEAR)
                 is_image = True
-            except GError:
+            except GLib.GError:
                 is_image = False
         if not is_image:
             file_ = 'icons/binary.png'
-            pic = gtk.gdk.pixbuf_new_from_file(
+            pic = GdkPixbuf.Pixbuf.new_from_file(
                 self.get_media_callback(file_)
             )
         return pic
@@ -888,7 +893,7 @@ class DataGridModel(gtk.GenericTreeModel):
 
     def on_get_flags(self):
         """Return the GtkTreeModelFlags for this particular type of model."""
-        return gtk.TREE_MODEL_LIST_ONLY
+        return Gtk.TreeModelFlags.LIST_ONLY
 
     def on_get_n_columns(self):
         """Return the number of columns in the model."""
@@ -900,7 +905,7 @@ class DataGridModel(gtk.GenericTreeModel):
             return bool
         else:
             if self.columns[index]['transform'] in ['boolean', 'image']:
-                return gtk.gdk.Pixbuf
+                return GdkPixbuf.Pixbuf
 
             return str
             # NOTE: int/long column types cannot display None/null values

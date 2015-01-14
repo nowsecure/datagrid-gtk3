@@ -1,7 +1,7 @@
 """User interface file handling classes."""
 from collections import defaultdict
 
-import gtk
+from gi.repository import Gtk
 
 
 class UIFile(object):
@@ -26,7 +26,7 @@ class UIFile(object):
 
     def __init__(self, ui_filename):
         """Open user interface file and connect widgets to callback methods."""
-        builder = gtk.Builder()
+        builder = Gtk.Builder()
         builder.add_from_file(ui_filename)
         builder.connect_signals(self)
         setattr(self, 'builder', builder)
@@ -58,7 +58,7 @@ class UIFile(object):
         The id of the handlers is used to disconnect it on destroy
 
         :param obj: Object that will emit the signal
-        :type obj: ``gobject.GObject``
+        :type obj: ``GObject.GObject``
         :param signal: Signal name
         :type signal: str
         :param handler: Callback to be executed when the signal is emitted
@@ -83,7 +83,7 @@ class SignalBlocker:
     """Block widget signals connected to a callback.
 
     :param widget: Widget that will emit the signal
-    :type widget: ``gobject.GObject``
+    :type widget: ``GObject.GObject``
     :param callback: Function to block
     :type callback: callable
 
