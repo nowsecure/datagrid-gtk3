@@ -580,6 +580,9 @@ class DataGridView(Gtk.TreeView):
                 col = Gtk.TreeViewColumn(lbl, renderer, **cell_renderer_kwargs)
                 col.connect('clicked', self.on_tvcol_clicked, item)
                 col.set_resizable(True)
+                # Set the minimum with for the column based on the with
+                # of the label and some padding
+                col.set_min_width(self._get_pango_string_width(lbl) + 14)
                 col.set_fixed_width(
                     self._get_best_column_width(column_index, samples))
                 col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
@@ -589,6 +592,24 @@ class DataGridView(Gtk.TreeView):
                 self.append_column(col)
                 self.tv_columns.append(col)
         self.set_headers_clickable(True)
+
+    @staticmethod
+    def _get_pango_string_width(string):
+        """Get the width of a string in pixels.
+
+        Based on:
+        http://python.6.x6.nabble.com/Getting-string-with-in-pixels-td1944346.html
+
+        :param string: String to be measured.
+        :return: Width of the string in pixels using the default text font.
+        :rtype: int
+        """
+        label = Gtk.Label()
+        pango_layout = label.get_layout()
+        pango_layout.set_markup(string)
+        pango_layout.set_font_description(label.get_style().font_desc)
+        width, _ = pango_layout.get_pixel_size()
+        return width
 
     def _get_best_column_width(self, colnum, samples):
         """Determine a reasonable column width for the given column.
