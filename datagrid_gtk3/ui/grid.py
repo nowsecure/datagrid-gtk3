@@ -573,6 +573,8 @@ class DataGridView(Gtk.TreeView):
                 else:
                     renderer = Gtk.CellRendererText()
                     renderer.set_property('ellipsize', Pango.EllipsizeMode.END)
+                    if column['type'] in (int, long, float):
+                        renderer.set_property('xalign', 1)
                     cell_renderer_kwargs = {'text': column_index}
                 lbl = '%s' % (item_display.replace('_', '__'),)
                 col = Gtk.TreeViewColumn(lbl, renderer, **cell_renderer_kwargs)
