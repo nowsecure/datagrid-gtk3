@@ -106,7 +106,7 @@ class DataGridController(object):
         self.selected_record_callback = selected_record_callback
         vscroll = container.grid_scrolledwindow.get_vadjustment()
         self.view = DataGridView(None, vscroll, has_checkboxes)
-        self.container.grid_viewport.add(self.view)
+        self.container.grid_scrolledwindow.add(self.view)
 
         # select all checkbutton
         checkbutton_select_all = self.container.checkbutton_select_all
