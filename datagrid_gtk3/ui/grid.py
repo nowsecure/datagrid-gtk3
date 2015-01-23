@@ -106,7 +106,7 @@ class DataGridController(object):
         self.selected_record_callback = selected_record_callback
         vscroll = container.grid_scrolledwindow.get_vadjustment()
         self.view = DataGridView(None, vscroll, has_checkboxes)
-        self.container.grid_viewport.add(self.view)
+        self.container.grid_scrolledwindow.add(self.view)
 
         # select all checkbutton
         checkbutton_select_all = self.container.checkbutton_select_all
@@ -573,11 +573,16 @@ class DataGridView(Gtk.TreeView):
                 else:
                     renderer = Gtk.CellRendererText()
                     renderer.set_property('ellipsize', Pango.EllipsizeMode.END)
+                    if column['type'] in (int, long, float):
+                        renderer.set_property('xalign', 1)
                     cell_renderer_kwargs = {'text': column_index}
                 lbl = '%s' % (item_display.replace('_', '__'),)
                 col = Gtk.TreeViewColumn(lbl, renderer, **cell_renderer_kwargs)
                 col.connect('clicked', self.on_tvcol_clicked, item)
                 col.set_resizable(True)
+                # Set the minimum width for the column based on the width
+                # of the label and some padding
+                col.set_min_width(self._get_pango_string_width(lbl) + 14)
                 col.set_fixed_width(
                     self._get_best_column_width(column_index, samples))
                 col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
@@ -587,6 +592,25 @@ class DataGridView(Gtk.TreeView):
                 self.append_column(col)
                 self.tv_columns.append(col)
         self.set_headers_clickable(True)
+
+    @staticmethod
+    def _get_pango_string_width(string):
+        """Get the width of a string in pixels.
+
+        Based on:
+        http://python.6.x6.nabble.com/Getting-string-with-in-pixels-td1944346.html
+
+        :param string: String to be measured.
+        :return: Width of the string in pixels using the default text font.
+        :rtype: int
+        """
+        label = Gtk.Label()
+        pango_layout = label.get_layout()
+        pango_layout.set_markup(string)
+        pango_layout.set_font_description(label.get_style().font_desc)
+        width, _ = pango_layout.get_pixel_size()
+        label.destroy()
+        return width
 
     def _get_best_column_width(self, colnum, samples):
         """Determine a reasonable column width for the given column.
