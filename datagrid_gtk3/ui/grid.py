@@ -29,6 +29,7 @@ iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABmJLR0QA/wD/AP+gvaeTAAAACXBI
 WXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3wEPEDYaIuf2wwAAABl0RVh0Q29tbWVudABDcmVhdGVk
 IHdpdGggR0lNUFeBDhcAAAANSURBVAjXY2BgYGAAAAAFAAFe8yo6AAAAAElFTkSuQmCC
 """))
+_no_image_loader.close()
 # A trivial 1px transparent png to be used on CellRendererPixbuf when there's
 # no data there. Due to possible bug on gtk, passing None to it will make it
 # repeat the lastest value read in a row for that column
