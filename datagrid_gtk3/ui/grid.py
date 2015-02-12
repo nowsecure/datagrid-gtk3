@@ -401,7 +401,6 @@ class DataGridView(Gtk.TreeView):
     def __init__(self, model, vscroll, has_checkboxes=True):
         """Set the model and setup scroll bar."""
         super(DataGridView, self).__init__()
-        self._row_changed_id = None
         self.model = model
         self.has_checkboxes = has_checkboxes
 
@@ -473,12 +472,11 @@ class DataGridView(Gtk.TreeView):
         :param treeview: the treeview that had its model modified
         :type treeview: `Gtk.TreeView`
         """
-        if self._row_changed_id is not None:
-            GObject.source_remove(self._row_changed_id)
-
         model = treeview.get_model()
-        self._row_changed_id = model.connect('row-changed',
-                                             self.on_model_row_changed)
+        if model is None:
+            return
+
+        model.connect('row-changed', self.on_model_row_changed)
 
     def on_model_row_changed(self, model, path, iter_):
         """Track row changes on model
