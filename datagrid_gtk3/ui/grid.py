@@ -812,6 +812,7 @@ class DataGridModel(GenericTreeModel):
                 value = self._image_transform(value)
             else:
                 return NO_IMAGE_PIXBUF
+            return value
 
         elif col_dict['transform'] == 'datetime':
             if value:
