@@ -823,6 +823,8 @@ class DataGridModel(GenericTreeModel):
         # Maybe we should handle this better above?
         if isinstance(value, unicode):
             value = str(value.encode(self.encoding_hint))
+        else:
+            value = str(value) if value is not None else ''
 
         return value
 
