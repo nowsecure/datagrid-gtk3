@@ -823,11 +823,10 @@ class DataGridModel(GenericTreeModel):
             # str as required by CellRendererText
             value = str(value) if value is not None else ''
 
-        # FIXME: At the end, if the string is in unicode, it needs to be
-        # converted to str or else gtk won't display it on the treeview.
-        # Maybe we should handle this better above?
+        # At the end, if value is unicode, it needs to be converted to
+        # an utf-8 encoded str or it won't be rendered in the treeview.
         if isinstance(value, unicode):
-            value = str(value.encode(self.encoding_hint))
+            value = value.encode('utf-8')
 
         return value
 
