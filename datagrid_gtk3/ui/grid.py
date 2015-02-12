@@ -120,15 +120,6 @@ class DataGridController(object):
         self.view = DataGridView(None, vscroll, has_checkboxes)
         self.container.grid_scrolledwindow.add(self.view)
 
-        # select all checkbutton
-        checkbutton_select_all = self.container.checkbutton_select_all
-        if has_checkboxes:
-            checkbutton_select_all.connect(
-                'toggled', self.on_select_all_toggled)
-            self.view.connect('cursor-changed', self.on_view_selection_changed)
-        else:
-            checkbutton_select_all.destroy()
-
         # select columns toggle button
         self.container.togglebutton_cols.connect(
             'toggled', self.on_columns_btn_toggled)
@@ -156,10 +147,8 @@ class DataGridController(object):
 
         # search widget
         self.container.entry_search.connect('activate', self.on_search_clicked)
-        self.container.button_search.connect('clicked', self.on_search_clicked)
-
-        # clear button
-        self.container.button_clear.connect('clicked', self.on_clear_clicked)
+        self.container.entry_search.connect(
+            'search-changed', self.on_search_clicked)
 
         self.container.grid_vbox.show_all()
 
@@ -290,25 +279,6 @@ class DataGridController(object):
             '<small>%d records</small>' % total_recs
         )
 
-    def on_select_all_toggled(self, checkbutton):
-        """Select all records in current recordset and update model/view.
-
-        :param checkbutton: "Select all" checkbutton
-        :type: :class:`Gtk.CheckButton`
-
-        """
-        where_params = {}
-        if checkbutton.get_active():
-            val = True
-        else:
-            val = False
-        if 'where' in self.view.active_params:
-            where_params['where'] = self.view.active_params['where']
-        ids = self.model.data_source.get_all_record_ids(where_params)
-        self.model.update_data_source('__selected', val, ids)
-        self.view.reset()
-        self.view.set_result(self.view.active_params)
-
     def on_search_clicked(self, widget):
         """Execute the full-text search for given keyword.
 
@@ -358,17 +328,6 @@ class DataGridController(object):
             }
         }
         self._refresh_view(update_dict, remove_columns)
-
-    def on_clear_clicked(self, checkbutton):
-        """Clear the UI controls and refresh the view to original table.
-
-        :param checkbutton: The widget that called the event
-        :type checkbutton: :class:`Gtk.CheckButton`
-        """
-        self.date_start.set_date(None)
-        self.date_end.set_date(None)
-        self.container.entry_search.set_text('')
-        self._refresh_view(clear=True)
 
     ###
     # Private
@@ -442,10 +401,16 @@ class DataGridView(Gtk.TreeView):
     def __init__(self, model, vscroll, has_checkboxes=True):
         """Set the model and setup scroll bar."""
         super(DataGridView, self).__init__()
+        self._row_changed_id = None
         self.model = model
         self.has_checkboxes = has_checkboxes
+
         vscroll.connect('value-changed', self.on_scrolled)
+        self.connect_after('notify::model', self.after_notify_model)
+
         self.tv_columns = []
+        self.check_btn_toggle_all = None
+        self.check_btn_toggled_id = None
         self.set_rules_hint(True)
         self.active_sort_column = None
         self.active_sort_column_order = None
@@ -494,9 +459,38 @@ class DataGridView(Gtk.TreeView):
         if 'page' in self.active_params:
             self.active_params.pop('page')
 
+
     ###
     # Callbacks
     ###
+
+    def after_notify_model(self, treeview, p_spec):
+        """Track model modification on the treeview
+
+        Aftwe the model of this treeview has changed, we need
+        to update some connections, like the 'row-changed'
+
+        :param treeview: the treeview that had its model modified
+        :type treeview: `Gtk.TreeView`
+        """
+        if self._row_changed_id is not None:
+            GObject.source_remove(self._row_changed_id)
+
+        model = treeview.get_model()
+        self._row_changed_id = model.connect('row-changed',
+                                             self.on_model_row_changed)
+
+    def on_model_row_changed(self, model, path, iter_):
+        """Track row changes on model
+
+        :param model: this treeview's model
+        :type model: :class:`DataGridModel`
+        :param path: the path to the changed row
+        :type path: :class:`Gtk.TreePath`
+        :param iter_: the iter to the changed row
+        :type iter_: :class:`Gtk.TreeIter`
+        """
+        self._update_toggle_check_btn_activity()
 
     def on_scrolled(self, vadj):
         """Load new records upon scroll to end of visible rows.
@@ -555,6 +549,25 @@ class DataGridView(Gtk.TreeView):
         self.reset()
         self.set_result(self.active_params)
 
+    def on_select_all_column_clicked(self, check_btn):
+        """Select all records in current recordset and update model/view.
+
+        :param check_btn: The check button inside the treeview column header
+        :type: :class:`Gtk.CheckButton`
+
+        """
+        val = check_btn.get_active()
+
+        where_params = {}
+        if 'where' in self.active_params:
+            where_params['where'] = self.active_params['where']
+
+        ids = self.model.data_source.get_all_record_ids(where_params)
+        self.model.update_data_source('__selected', val, ids)
+
+        self.reset()
+        self.set_result(self.active_params)
+
     ###
     # Private
     ###
@@ -566,6 +579,22 @@ class DataGridView(Gtk.TreeView):
             toggle_cell = Gtk.CellRendererToggle()
             toggle_cell.connect('toggled', self.on_toggle, 0)
             col = Gtk.TreeViewColumn('', toggle_cell, active=0)
+
+            check_btn = Gtk.CheckButton()
+            col.set_widget(check_btn)
+            check_btn.show()
+
+            self.check_btn_toggled_id = check_btn.connect(
+                "toggled", self.on_select_all_column_clicked)
+
+            # Mimic toggle on checkbutton since it won't receive the click.
+            # This will work when clicking directly on the checkbutton or on
+            # the header button itself.
+            col.connect(
+                'clicked',
+                lambda tvc: check_btn.set_active(not check_btn.get_active()))
+
+            self.check_btn_toggle_all = check_btn
             self.append_column(col)
 
         samples = self.model.rows[:self.SAMPLE_SIZE]
@@ -603,7 +632,27 @@ class DataGridView(Gtk.TreeView):
                     col.set_sort_order(self.active_sort_column_order)
                 self.append_column(col)
                 self.tv_columns.append(col)
+
         self.set_headers_clickable(True)
+        self._update_toggle_check_btn_activity()
+
+    def _update_toggle_check_btn_activity(self):
+        """Update the "selected" treeview column's checkbox activity
+
+        This will update the checkbox activity based on the selected
+        rows on the model.
+        """
+        if self.check_btn_toggle_all is None:
+            return
+
+        all_selected = all(row[0] for row in self.model)
+        any_selected = any(row[0] for row in self.model)
+
+        with self.check_btn_toggle_all.handler_block(
+                self.check_btn_toggled_id):
+            self.check_btn_toggle_all.set_active(all_selected)
+            self.check_btn_toggle_all.set_inconsistent(
+                not all_selected and any_selected)
 
     @staticmethod
     def _get_pango_string_width(string):
