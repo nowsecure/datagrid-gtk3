@@ -1,6 +1,6 @@
 """Module containing classes for datagrid MVC implementation."""
+import base64
 import os
-
 from datetime import datetime
 
 from gi.repository import (
@@ -22,6 +22,17 @@ _MEDIA_FILES = os.path.join(
     "data",
     "media"
 )
+
+_no_image_loader = GdkPixbuf.PixbufLoader.new_with_type("png")
+_no_image_loader.write(base64.b64decode("""
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABmJLR0QA/wD/AP+gvaeTAAAACXBI
+WXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3wEPEDYaIuf2wwAAABl0RVh0Q29tbWVudABDcmVhdGVk
+IHdpdGggR0lNUFeBDhcAAAANSURBVAjXY2BgYGAAAAAFAAFe8yo6AAAAAElFTkSuQmCC
+"""))
+# A trivial 1px transparent png to be used on CellRendererPixbuf when there's
+# no data there. Due to possible bug on gtk, passing None to it will make it
+# repeat the lastest value read in a row for that column
+NO_IMAGE_PIXBUF = _no_image_loader.get_pixbuf()
 
 
 class DataGridContainer(UIFile):
@@ -799,13 +810,13 @@ class DataGridModel(GenericTreeModel):
             if value:
                 value = self._image_transform(value)
             else:
-                return None
+                return NO_IMAGE_PIXBUF
 
         elif col_dict['transform'] == 'datetime':
             if value:
                 value = self._datetime_transform(value)
             else:
-                return None
+                return ''
 
         # FIXME: At the end, if the string is in unicode, it needs to be
         # converted to str or else gtk won't display it on the treeview.
@@ -885,10 +896,10 @@ class DataGridModel(GenericTreeModel):
         timestamp = value
         #  If timestamp value is -1, the actual data is None.
         if timestamp == -1:
-            return None
+            return ''
         # TODO: ??? When is timestamp ever -2?
         if timestamp == -2:
-            return None
+            return ''
 
         if timestamp < self.MIN_TIMESTAMP:
             return value
