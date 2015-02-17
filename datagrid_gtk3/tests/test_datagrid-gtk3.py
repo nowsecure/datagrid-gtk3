@@ -64,17 +64,6 @@ class DataGridControllerTest(unittest.TestCase):
             'start_date'
         )
 
-    def test_no_checkboxes(self):
-        """Test that checkboxes are invisible if desired."""
-        win = Mock()
-        datagrid_container = DataGridContainer(win)
-        datagrid_controller = DataGridController(
-            datagrid_container, self.datasource, None, has_checkboxes=False)
-        self.assertFalse(
-            datagrid_controller.container.checkbutton_select_all.get_visible())
-        self.assertNotEqual(
-            datagrid_controller.view.get_columns()[0].get_title(), "__selected")
-
 
 class DataGridModelTest(unittest.TestCase):
 
