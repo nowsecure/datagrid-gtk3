@@ -84,9 +84,15 @@ class DataGridModelTest(unittest.TestCase):
         """Create test data."""
         self.datagrid_model = DataGridModel(Mock(), Mock(), Mock())
 
+    def test_datetime_transform_negative(self):
+        """Return an empty string when timestamp is -1."""
+        self.assertEqual(self.datagrid_model._datetime_transform(-1), '')
+
     def test_datetime_transform_zero(self):
-        """Return input value with invalid datetime input of 0."""
-        self.assertEqual(self.datagrid_model._datetime_transform(0), 0)
+        """Return valid datetime with valid timestamp input of 0."""
+        self.assertEqual(
+            self.datagrid_model._datetime_transform(0),
+            '1970-01-01T00:00:00')
 
     def test_datetime_transform_invalid_to_big(self):
         """Return input value with invalid datetime input over max value."""
