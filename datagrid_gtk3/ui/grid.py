@@ -233,15 +233,23 @@ class DataGridController(object):
                  Gtk.STOCK_OK, Gtk.ResponseType.OK)
             )
             for column in self.model.columns:
-                checkbutton = Gtk.CheckButton(column['display'])
-                if not column['name'].startswith('__'):
-                    active = (self.model.display_columns is None
-                              or column['name'] in self.model.display_columns)
-                    checkbutton.set_active(active)
-                    dialog.vbox.pack_start(
-                        checkbutton, expand=True, fill=True, padding=0)
-                checkbutton.connect(
-                    'toggled',
+                if column['name'].startswith('__'):
+                    continue
+
+                switch = Gtk.Switch()
+                label = Gtk.Label(column['display'])
+                switch.set_active(
+                    self.model.display_columns is None or
+                    column['name'] in self.model.display_columns)
+
+                hbox = Gtk.HBox(spacing=5)
+                hbox.pack_start(switch, expand=False, fill=True, padding=0)
+                hbox.pack_start(label, expand=True, fill=True, padding=0)
+                dialog.vbox.pack_start(
+                    hbox, expand=True, fill=True, padding=5)
+
+                switch.connect(
+                    'notify::active',
                     self.on_column_checkbutton_toggled,
                     column['name'])
             dialog.set_decorated(False)
@@ -260,7 +268,7 @@ class DataGridController(object):
                 widget.set_active(False)
                 dialog.destroy()
 
-    def on_column_checkbutton_toggled(self, widget, name):
+    def on_column_checkbutton_toggled(self, widget, value, name):
         """Set the list of columns to display based on column checkboxes.
 
         :param widget: checkbox widget for selected/deselected column
@@ -271,7 +279,7 @@ class DataGridController(object):
             self.model.display_columns = [
                 column['name'] for column in self.model.columns
                 if not column['name'].startswith('__')]
-        if widget.get_active():
+        if value:
             self.model.display_columns.append(name)
         else:
             self.model.display_columns.remove(name)
