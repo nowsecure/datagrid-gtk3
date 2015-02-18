@@ -1089,9 +1089,12 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
         style_context.add_class(Gtk.STYLE_CLASS_CHECK)
 
         if self._is_checked:
+            # CHECKED is the right flag to use, but it's only available on
+            # gtk 3.14+. For older versions, we use ACTIVE alone, since
+            # setting it together with existing flags would break its drawing
             if hasattr(Gtk.StateFlags, 'CHECKED'):
                 style_context.set_state(style_context.get_state() |
-                                        Gtk.StateFlags.ACTIVE)
+                                        Gtk.StateFlags.CHECKED)
             else:
                 style_context.set_state(Gtk.StateFlags.ACTIVE)
 
