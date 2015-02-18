@@ -8,6 +8,7 @@ from gi.repository import (
     GObject,
     GdkPixbuf,
     Gtk,
+    Gdk,
     Pango,
 )
 from pygtkcompat.generictreemodel import GenericTreeModel
@@ -56,11 +57,15 @@ class ColumnsPopup(Gtk.Window):
 
     def __init__(self, toggle_btn, controller, *args, **kwargs):
         self._toggle_btn = toggle_btn
-        self._toggle_btn.connect('toggled', self.on_toggle_button_toggled)
+        self._toggled_id = self._toggle_btn.connect(
+            'toggled', self.on_toggle_button_toggled)
         self._controller = controller
 
         super(ColumnsPopup, self).__init__(
             Gtk.WindowType.POPUP, *args, **kwargs)
+
+        self.connect('button-press-event', self.on_button_press_event)
+        self.connect('key-press-event', self.on_key_press_event)
 
         self._scrolled_window = Gtk.ScrolledWindow(
             vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
@@ -111,16 +116,46 @@ class ColumnsPopup(Gtk.Window):
                      POPUP_MAX_HEIGHT)
         self.set_size_request(-1, height)
 
+        if not self._popup_grab_window():
+            self.popdown()
+
     def popdown(self):
         """Hides the popup."""
         if not self._toggle_btn.get_realized():
             return
 
+        # Make sure the toggle button is unset when popping down.
+        with self._toggle_btn.handler_block(self._toggled_id):
+            self._toggle_btn.set_active(False)
+
+        self.grab_remove()
         self.hide()
 
     ##
     # Private
     ##
+
+    def _popup_grab_window(self):
+        """Grab pointer and keyboard on this window.
+
+        By grabbing the pointer and the keyboard, we will be able to
+        intercept key-press and button-press events.
+        """
+        window = self.get_window()
+        grab_status = Gdk.pointer_grab(
+            window, True,
+            (Gdk.EventMask.BUTTON_PRESS_MASK |
+             Gdk.EventMask.BUTTON_RELEASE_MASK |
+             Gdk.EventMask.POINTER_MOTION_MASK),
+            None, None, 0L)
+        if grab_status == Gdk.GrabStatus.SUCCESS:
+            if Gdk.keyboard_grab(window, True, 0L) != Gdk.GrabStatus.SUCCESS:
+                display = window.get_display()
+                display.pointer_ungrab(0L)
+                return False
+
+        self.grab_add()
+        return True
 
     def _get_position(self):
         """Get the position to show this popup."""
@@ -169,6 +204,38 @@ class ColumnsPopup(Gtk.Window):
     ##
     # Callbacks
     ##
+
+    def on_key_press_event(self, window, event):
+        """Handle key press events.
+
+        Popdown when the user presses Esc.
+        """
+        if event.get_keyval()[1] == Gdk.KEY_Escape:
+            self.popdown()
+            return True
+        return False
+
+    def on_button_press_event(self, window, event):
+        """Handle button press events.
+
+        Popdown when the user clicks on an area outside this window.
+        """
+        event_rect = Gdk.Rectangle()
+        event_rect.x, event_rect.y = event.get_root_coords()
+        event_rect.width = 1
+        event_rect.height = 1
+
+        allocation = self.get_allocation()
+        window_rect = Gdk.Rectangle()
+        window_rect.x, window_rect.y = self._get_position()
+        window_rect.width = allocation.width
+        window_rect.height = allocation.height
+
+        intersection = Gdk.rectangle_intersect(
+            event_rect, window_rect)
+        # if the click was outside this window, hide it
+        if not intersection[0]:
+            self.popdown()
 
     def on_toggle_button_toggled(self, widget):
         """Show switch list of columns to display.
