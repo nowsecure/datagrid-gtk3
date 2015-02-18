@@ -69,7 +69,7 @@ class DateEntry(Gtk.Entry):
         self.connect('focus_out_event', self.on_focus_out_event)
         self.connect('button_press_event', self.on_button_press_event)
         self.connect('activate', lambda widget: widget.get_toplevel()
-                     .child_focus(Gtk.DIR_TAB_FORWARD))
+                     .child_focus(Gtk.DirectionType.TAB_FORWARD))
         assert parent_window, 'Parent window needed'
         self.parent_window = parent_window
         self.set_width_chars(11)
