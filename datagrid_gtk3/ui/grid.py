@@ -341,7 +341,7 @@ def default_get_full_path(relative_path):
 
 class DataGridController(object):
 
-    """Sets up UI controls to manipulate datagrid model/view.
+    """UI controls to manipulate datagrid model/view
 
     :param container: ``UIFile`` instance providing ``Gtk.Box`` and
         access to GTK widgets for controller
@@ -349,8 +349,11 @@ class DataGridController(object):
     :param data_source: Database backend instance
     :type data_source: :class:`datagrid_gtk3.db.sqlite.SQLiteDataSource`
     :param selected_record_callback:
-        Function to execute when a record is selected in the grid
-    :type selected_record_callback: function
+        Callback to call when a record is selected in the grid
+    :type selected_record_callback: `callable`
+    :param selected_record_callback:
+        Callback to call when an icon is activated on `DataGridIconView`
+    :type selected_record_callback: `callable`
     :param bool has_checkboxes: Whether record rows have a checkbox
     :param decode_fallback: Optional callable for converting objects to
         strings in case `unicode(obj)` fails.
@@ -365,18 +368,21 @@ class DataGridController(object):
     MAX_TIMESTAMP = 2147485547  # 2038
 
     def __init__(self, container, data_source, selected_record_callback=None,
-                 has_checkboxes=True, decode_fallback=None, get_full_path=None):
+                 activated_icon_callback=None, has_checkboxes=True,
+                 decode_fallback=None, get_full_path=None):
         """Setup UI controls and load initial data view."""
         if decode_fallback is None:
             decode_fallback = default_decode_fallback
         if get_full_path is None:
             get_full_path = default_get_full_path
 
+        self.container = container
+
         self.decode_fallback = decode_fallback
         self.get_full_path = get_full_path
-
-        self.container = container
         self.selected_record_callback = selected_record_callback
+        self.activated_icon_callback = activated_icon_callback
+
         vscroll = container.grid_scrolledwindow.get_vadjustment()
         vscroll.connect('value-changed', self.on_scrolled)
 
@@ -387,6 +393,8 @@ class DataGridController(object):
                                self.on_treeview_cursor_changed)
         self.icon_view.connect('selection-changed',
                                self.on_iconview_selection_changed)
+        self.icon_view.connect('item-activated',
+                               self.on_iconview_item_activated)
 
         # The treview will be the default view
         self.view = self.tree_view
@@ -590,6 +598,22 @@ class DataGridController(object):
             self.selected_record_callback(record)
         elif self.selected_record_callback:
             self.selected_record_callback(None)
+
+    def on_iconview_item_activated(self, view, path):
+        """Get the data the activated record and run optional callback.
+
+        :param view: The icon view containing the selected record
+        :type view: :class:`Gtk.IconView`
+        :param path: the activated path
+        """
+        if not path or not self.activated_icon_callback:
+            return
+
+        row_iterator = view.model.get_iter(path)
+        record = self.model.data_source.get_single_record(
+            self.model[row_iterator][1])
+        # Why is the pixbuf column on view.pixbuf_column -1 position in this rec?
+        self.activated_icon_callback(record, view.pixbuf_column - 1)
 
     def on_data_loaded(self, model, total_recs):
         """Update the total records label.
@@ -1101,6 +1125,7 @@ class DataGridIconView(Gtk.IconView):
 
         super(DataGridIconView, self).__init__(*args, **kwargs)
 
+        self.pixbuf_column = None
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
         # it first tough
@@ -1122,7 +1147,8 @@ class DataGridIconView(Gtk.IconView):
         for column_index, column in enumerate(self.model.columns):
             # FIXME: Can we have more than one column with image transform?
             if column['transform'] == 'image':
-                self.set_pixbuf_column(column_index)
+                self.pixbuf_column = column_index
+                self.set_pixbuf_column(self.pixbuf_column)
                 break
 
     ##
