@@ -496,9 +496,7 @@ class DataGridController(object):
             vadj.get_page_size() == vadj.get_upper())
 
         if scrolled_to_bottom:
-            self.view.active_params['page'] = self.view.active_page + 1
-            if self.model.add_rows(self.view.active_params):
-                self.view.active_page += 1
+            self.model.add_rows()
 
         return False
 
@@ -517,7 +515,7 @@ class DataGridController(object):
 
         self.model.data_source.update_selected_columns(
             self.model.display_columns)
-        self.view.refresh(self.view.active_params)
+        self.view.refresh()
 
     def on_popup_view_changed(self, popup, new_view):
         """Set the actual view based on the options popup option.
@@ -540,10 +538,6 @@ class DataGridController(object):
         self.container.grid_scrolledwindow.remove(child)
         self.container.grid_scrolledwindow.add(self.view)
         self.view.show_all()
-
-        # FIXME: Now that we have 2 possible view, maybe we should let the
-        # controller handle active_params?
-        self.view.active_params = child.active_params
 
         self.view.refresh()
         # FIXME: Is there a way to keep the selection after the view was
@@ -670,31 +664,28 @@ class DataGridController(object):
         # ## END TODO
         return timestamp
 
-    def _refresh_view(self, update_dict=None, remove_keys=None, clear=False):
+    def _refresh_view(self, update_dict=None, remove_keys=None):
         """Reload the grid with any filter/sort parameters.
 
         :param dict update_dict: Any ``where`` parameters with which to update
             the currently active parameters
         :param remove_keys: List of keys to delete from ``where`` parameters
         :type remove_keys: list
-        :param bool clear: Remove all active params in view if True
 
         """
-        if clear:
-            self.view.active_params = {}
-        else:
-            if 'where' in self.view.active_params:
-                if remove_keys:
-                    for key in remove_keys:
-                        if key in self.view.active_params['where']:
-                            self.view.active_params['where'].pop(key)
-                # add to existing parameters
-                if update_dict:
-                    self.view.active_params['where'].update(update_dict)
-            else:
-                if update_dict:
-                    self.view.active_params['where'] = update_dict
-        self.view.refresh(self.view.active_params)
+        where_dict = self.model.active_params.setdefault('where', {})
+
+        if remove_keys:
+            for key in remove_keys:
+                where_dict.pop(key, None)
+
+        where_dict.update(update_dict or {})
+
+        # If in the end the dict was/became empty, remove it from active_params
+        if not where_dict:
+            del self.model.active_params['where']
+
+        self.view.refresh()
 
 
 class DataGridView(Gtk.TreeView):
@@ -731,41 +722,16 @@ class DataGridView(Gtk.TreeView):
         self.set_rules_hint(True)
         self.active_sort_column = None
         self.active_sort_column_order = None
-        self.active_params = {}
-        self.active_page = 0
 
     ###
     # Public
     ###
 
-    def refresh(self, params=None):
-        """Set the result and update the grid.
-
-        An example of the ``params`` dict looks like this::
-
-            {
-                'order_by': 'title',
-                'where':
-                {
-                    'search':
-                    {
-                        'operator': '=',
-                        'param': 'Google'
-                    }
-                },
-                'desc': False
-            }
-
-        :param params: Dictionary of parameters
-        :type params: dict
-        """
+    def refresh(self):
+        """Refresh the model results."""
         self.set_model(None)
-        self.model.refresh(params)
+        self.model.refresh()
         self.set_model(self.model)
-
-        self.active_page = 0
-        if 'page' in self.active_params:
-            del self.active_params['page']
 
         for col in self.get_columns()[:]:
             self.remove_column(col)
@@ -839,8 +805,8 @@ class DataGridView(Gtk.TreeView):
         self.active_sort_column = column
         self.active_sort_column_order = new_sort_order
         desc = sort_order == Gtk.SortType.DESCENDING
-        self.active_params.update({'order_by': column, 'desc': desc})
-        self.refresh(self.active_params)
+        self.model.active_params.update({'order_by': column, 'desc': desc})
+        self.refresh()
 
     def on_select_all_column_clicked(self, check_btn):
         """Select all records in current recordset and update model/view.
@@ -852,13 +818,13 @@ class DataGridView(Gtk.TreeView):
         val = check_btn.get_active()
 
         where_params = {}
-        if 'where' in self.active_params:
-            where_params['where'] = self.active_params['where']
+        if 'where' in self.model.active_params:
+            where_params['where'] = self.model.active_params['where']
 
         ids = self.model.data_source.get_all_record_ids(where_params)
         self.model.update_data_source('__selected', val, ids)
 
-        self.refresh(self.active_params)
+        self.refresh()
 
     ###
     # Private
@@ -1023,41 +989,16 @@ class DataGridIconView(Gtk.IconView):
         # it from self.get_model instead of here. We would need to refresh
         # it first tough
         self.model = model
-        self.active_page = 0
-        self.active_params = {}
 
     ###
     # Public
     ###
 
-    def refresh(self, params=None):
-        """Set the result and update the grid.
-
-        An example of the ``params`` dict looks like this::
-
-            {
-                'order_by': 'title',
-                'where':
-                {
-                    'search':
-                    {
-                        'operator': '=',
-                        'param': 'Google'
-                    }
-                },
-                'desc': False
-            }
-
-        :param params: Dictionary of parameters
-        :type params: dict
-        """
+    def refresh(self):
+        """Refresh the model results."""
         self.set_model(None)
-        self.model.refresh(params)
+        self.model.refresh()
         self.set_model(self.model)
-
-        self.active_page = 0
-        if 'page' in self.active_params:
-            del self.active_params['page']
 
         for column_index, column in enumerate(self.model.columns):
             if column['transform'] == 'image':
@@ -1100,6 +1041,7 @@ class DataGridModel(GenericTreeModel):
         """Set up model."""
         super(DataGridModel, self).__init__()
 
+        self.active_params = {}
         self.data_source = data_source
         self.get_media_callback = get_media_callback
         self.decode_fallback = decode_fallback
@@ -1117,26 +1059,27 @@ class DataGridModel(GenericTreeModel):
         self.rows = None
         self.total_recs = None
 
-    def refresh(self, params):
-        """Refresh the model from the data source.
+    def refresh(self):
+        """Refresh the model from the data source."""
+        if 'page' in self.active_params:
+            del self.active_params['page']
 
-        :param dict params: dict of params used for filtering/sorting/etc.
-        """
-        self.data_source.load(params)
+        self.data_source.load(self.active_params)
         self.rows = self.data_source.rows
         self.total_recs = self.data_source.total_recs
         self.emit('data-loaded', self.total_recs)
 
-    def add_rows(self, params):
+    def add_rows(self):
         """Add rows to the model from a new page of data and update the view.
 
-        :param dict params: dict of params used for filtering/sorting/etc.
         :return: True if update took place, False if not
         :rtype: bool
         """
+        self.active_params['page'] = self.active_params.get('page', 0) + 1
+
         path = (len(self.rows) - 1,)
         itr = self.get_iter(path)
-        self.data_source.load(params)
+        self.data_source.load(self.active_params)
         if not self.data_source.rows:
             return False
 
