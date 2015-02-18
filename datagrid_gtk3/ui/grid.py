@@ -373,7 +373,7 @@ class DataGridController(object):
         vscroll.connect('value-changed', self.on_scrolled)
 
         self.tree_view = DataGridView(None, has_checkboxes=has_checkboxes)
-        self.icon_view = DataGridIconView(None)
+        self.icon_view = DataGridIconView(None, has_checkboxes=has_checkboxes)
 
         self.tree_view.connect('cursor-changed',
                                self.on_treeview_cursor_changed)
@@ -975,6 +975,103 @@ class DataGridView(Gtk.TreeView):
         return width
 
 
+class DataGridCellAreaRenderer(Gtk.CellAreaBox):
+
+    """A cell area renderer with a check box in it"""
+
+    CHECK_BUTTON_OFFSET = 6
+
+    def __init__(self, *args, **kwargs):
+        super(DataGridCellAreaRenderer, self).__init__(*args, **kwargs)
+
+        checkbutton = Gtk.CheckButton()
+        value = GObject.Value(GObject.TYPE_INT)
+        checkbutton.style_get_property('indicator-size', value)
+        # 16 is the default size, as defined herr:
+        # https://git.gnome.org/browse/gtk+/tree/gtk/gtkcheckbutton.c
+        self._checkbutton_size = value.get_int() or 16
+
+        self._is_checked = False
+
+    ###
+    # Public
+    ###
+
+    def get_checkbutton_area(self, cell_area):
+        """Get the area to draw the checkbox on the cell area
+
+        :param cell_area: the cell area rectangle
+        :type cell_area: `cairo.Rectangle`
+        :returns: a tuple with the area as (x, y, width, height)
+        :rtype: `tuple`
+        """
+        pos_x = cell_area.x + self.CHECK_BUTTON_OFFSET
+        pos_y = (cell_area.y + cell_area.height -
+                 (self._checkbutton_size + self.CHECK_BUTTON_OFFSET))
+        return pos_x, pos_y, self._checkbutton_size, self._checkbutton_size
+
+    ###
+    # Virtual overrides
+    ###
+
+    def do_render(self, ctx, widget, cr, background_area,
+                  cell_area, flags, paint_focus):
+        """Render the checkbox on the cell area
+
+        :param ctx: the cell area context
+        :type ctx: `Gtk.CellAreaContext`
+        :param widget: the widget that we are rendering on
+        :type widget: `DataGridIconView`
+        :param cr: the context to render with
+        :type cr: `cairo.Context`
+        :param background_area: the widget relative coordinates from
+            the area's background
+        :type background_area: `cairo.Rectangle`
+        :param cell_area: the widget relative coordinates from area
+        :type cell_area: `cairo.Rectangle`
+        :param flags: the cell renderer state for the area in this row
+        :type flags: `Gtk.CellRendererState`
+        :param paint_focus: wheather the area should paint focus on
+            focused cells for focused rows or not
+        :type paint_focus: `bool`
+        """
+        # For some reason, can't use super here
+        Gtk.CellAreaBox.do_render(
+            self, ctx, widget, cr, background_area,
+            cell_area, flags, paint_focus)
+
+        if not widget.has_checkboxes:
+            return
+
+        style_context = widget.get_style_context()
+        style_context.save()
+        style_context.add_class(Gtk.STYLE_CLASS_CHECK)
+
+        if self._is_checked:
+            if hasattr(Gtk.StateFlags, 'CHECKED'):
+                style_context.set_state(style_context.get_state() |
+                                        Gtk.StateFlags.ACTIVE)
+            else:
+                style_context.set_state(Gtk.StateFlags.ACTIVE)
+
+        Gtk.render_check(widget.get_style_context(), cr,
+                         *self.get_checkbutton_area(cell_area))
+
+        style_context.restore()
+
+    def do_apply_attributes(self, model, iter_, *args):
+        """Render the checkbox on the cell area
+
+        :param model: the model to pull values from
+        :type model: `DataGridModel`
+        :param iter_: the iter to apply values from
+        :type iter_: `Gtk.TreeIter`
+        """
+        # For some reason, can't use super here
+        Gtk.CellAreaBox.do_apply_attributes(self, model, iter_, *args)
+        self._is_checked = model.get_value(iter_, 0)
+
+
 class DataGridIconView(Gtk.IconView):
 
     """A ``Gtk.IconView`` for displaying data from a ``DataGridModel``.
@@ -984,13 +1081,21 @@ class DataGridIconView(Gtk.IconView):
 
     """
 
+    has_checkboxes = GObject.property(type=bool, default=True)
+
     def __init__(self, model, *args, **kwargs):
+        if not 'cell_area' in kwargs:
+            kwargs['cell_area'] = DataGridCellAreaRenderer()
+
         super(DataGridIconView, self).__init__(*args, **kwargs)
 
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
         # it first tough
         self.model = model
+
+        self.connect('button-release-event', self.on_button_release_event)
+        self.connect('key-press-event', self.on_key_press_event)
 
     ###
     # Public
@@ -1006,6 +1111,89 @@ class DataGridIconView(Gtk.IconView):
             if column['transform'] == 'image':
                 self.set_pixbuf_column(column_index)
                 break
+
+    ##
+    # Callbacks
+    ##
+
+    def on_key_press_event(self, window, event):
+        """Handle key press events
+
+        Toggle the check button when pressing 'Space'
+        """
+        if not self.has_checkboxes:
+            return False
+
+        if event.get_keyval()[1] != Gdk.KEY_space:
+            return False
+
+        selections = self.get_selected_items()
+        if not selections:
+            return False
+
+        self._toggle_path(selections[0])
+        return True
+
+    def on_button_release_event(self, window, event):
+        """Handle button press events
+
+        Toggle the check button if we clicked on it.
+        """
+        if not self.has_checkboxes:
+            return False
+
+        coords = event.get_coords()
+        path = self.get_path_at_pos(*coords)
+        if not path:
+            return False
+
+        success, cell_rect = self.get_cell_rect(path, None)
+        cell_area = self.get_property('cell_area')
+
+        event_rect = Gdk.Rectangle()
+        event_rect.x, event_rect.y = coords
+        event_rect.width = 1
+        event_rect.height = 1
+
+        check_rect = Gdk.Rectangle()
+        (x, y,
+         check_rect.width,
+         check_rect.height) = cell_area.get_checkbutton_area(cell_rect)
+
+        # x and y needs to be converted to bin window coords
+        (check_rect.x,
+         check_rect.y) = self.convert_widget_to_bin_window_coords(x, y)
+
+        # For some reason, we also need to consider the item padding
+        check_rect.x += self.get_item_padding()
+        check_rect.y -= self.get_item_padding()
+
+        intersection = Gdk.rectangle_intersect(event_rect, check_rect)
+        if intersection[0]:
+            self._toggle_path(path)
+            return True
+
+        return False
+
+    ###
+    # Private
+    ###
+
+    def _toggle_path(self, path):
+        """Toggle the '__selected' value for the given path on model
+
+        :param path: the path to toggle
+        :type itr: :class:`Gtk.TreePath`
+        """
+        iter_ = self.model.get_iter(path)
+        val = self.model.get_value(iter_, 0)
+        # FIXME: Gtk.IconView has some problems working with huge models.
+        # It would invalidate everything on row changed, as can be seem here:
+        # https://git.gnome.org/browse/gtk+/tree/gtk/gtkiconview.c
+        # Atm we will avoid row-changed and just call queue_redraw which
+        # will be a lot faster! We should try to find a better solution
+        self.model.set_value(iter_, 0, not val, emit_event=False)
+        self.queue_draw()
 
 
 class DataGridModel(GenericTreeModel):
@@ -1180,7 +1368,7 @@ class DataGridModel(GenericTreeModel):
 
         return value
 
-    def set_value(self, itr, column, value):
+    def set_value(self, itr, column, value, emit_event=True):
         """Set the value in the model and update the data source with it.
 
         :param itr: ``TreeIter`` object representing the current row
@@ -1188,13 +1376,16 @@ class DataGridModel(GenericTreeModel):
         :param int column: Column index for value
         :param value: Update the row/column to this value
         :type value: str or int or bool or None
+        :param bool emit_event: if we should call :meth:`.row_changed`.
+            Be sure to know what you are doing before passind `False` here
         """
         path = self.get_path(itr)[0]
         self.rows[path][column] = value
         id_ = self.get_value(itr, 1)
         self.update_data_source(
             self.columns[column]['name'], value, [int(id_)])
-        self.row_changed(path, itr)
+        if emit_event:
+            self.row_changed(path, itr)
 
     ###
     # Transforms
