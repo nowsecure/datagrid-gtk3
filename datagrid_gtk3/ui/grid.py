@@ -4,7 +4,6 @@ import os
 from datetime import datetime
 
 from gi.repository import (
-    GLib,
     GObject,
     GdkPixbuf,
     Gtk,
