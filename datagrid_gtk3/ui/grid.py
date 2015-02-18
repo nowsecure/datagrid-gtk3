@@ -528,9 +528,11 @@ class DataGridController(object):
         if new_view == OptionsPopup.VIEW_ICON:
             self.view = self.icon_view
             self.model.image_max_size = 100.0
+            self.model.image_draw_border = True
         elif new_view == OptionsPopup.VIEW_TREE:
             self.view = self.tree_view
             self.model.image_max_size = 24.0
+            self.model.image_draw_border = False
         else:
             raise AssertionError("Unrecognized option %r" % (new_view, ))
 
@@ -1032,7 +1034,10 @@ class DataGridModel(GenericTreeModel):
     }
 
     image_max_size = GObject.property(type=float, default=24.0)
+    image_draw_border = GObject.property(type=bool, default=False)
 
+    IMAGE_BORDER_SIZE = 5
+    IMAGE_SHADOW_OFFSET = 2
     MIN_TIMESTAMP = 0  # 1970
     MAX_TIMESTAMP = 2147485547  # 2038
 
@@ -1293,20 +1298,46 @@ class DataGridModel(GenericTreeModel):
             pixbuf = pixbuf.scale_simple(width, height,
                                          GdkPixbuf.InterpType.BILINEAR)
 
-            # A little optimization. If the aspect was 1:1, no need to copy
-            # it to copy it to the square pixbuf bellow.
-            if aspect == 1:
-                return pixbuf
+        square_side = self.image_max_size
+        if self.image_draw_border:
+            square_side += self.IMAGE_BORDER_SIZE * 2
+            square_side += self.IMAGE_SHADOW_OFFSET
 
         # Make sure the image is on the center of the image_max_size
         square_pic = GdkPixbuf.Pixbuf.new(
             GdkPixbuf.Colorspace.RGB, True, pixbuf.get_bits_per_sample(),
-            self.image_max_size, self.image_max_size)
+            square_side, square_side)
         # Fill with transparent white
         square_pic.fill(0xffffff00)
 
-        dest_x = (self.image_max_size - width) / 2
-        dest_y = (self.image_max_size - height) / 2
+        dest_x = (square_side - width) / 2
+        dest_y = (square_side - height) / 2
+
+        if self.image_draw_border:
+            # Make sure we are still drawing the image at the center
+            # after we after drawing the shadow (the shadow will make the
+            # image expand 2 pixels to the right and to the bottom)
+            dest_x -= self.IMAGE_SHADOW_OFFSET / 2
+            dest_y -= self.IMAGE_SHADOW_OFFSET / 2
+            sub_x = dest_x - self.IMAGE_BORDER_SIZE
+            sub_y = dest_y - self.IMAGE_BORDER_SIZE
+            addition = self.IMAGE_BORDER_SIZE * 2
+
+            # Shadow
+            sub_shadow = square_pic.new_subpixbuf(
+                sub_x + self.IMAGE_SHADOW_OFFSET,
+                sub_y + self.IMAGE_SHADOW_OFFSET,
+                width + addition, height + addition)
+            sub_shadow.fill(0xd3d7cfff)
+            del sub_shadow
+
+            # White border
+            sub_border = square_pic.new_subpixbuf(
+                sub_x, sub_y,
+                width + addition, height + addition)
+            sub_border.fill(0xffffffff)
+            del sub_border
+
         pixbuf.copy_area(
             0, 0, width, height, square_pic, dest_x, dest_y)
 
