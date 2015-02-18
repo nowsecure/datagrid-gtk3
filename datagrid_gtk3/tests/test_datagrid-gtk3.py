@@ -227,6 +227,27 @@ class DataGridModelTest(unittest.TestCase):
             self.datagrid_model._datetime_transform(315532801000000),
             '1980-01-01T00:00:01')
 
+    def test_bytes_transform(self):
+        """Test bytes humanization."""
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(1),
+            '1 byte')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(50),
+            '50.0 bytes')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(2348),
+            '2.3 kB')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(1420000),
+            '1.4 MB')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(1420000328),
+            '1.3 GB')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(24200003283214),
+            '22.0 TB')
+
     @mock.patch('datagrid_gtk3.ui.grid.NO_IMAGE_PIXBUF.scale_simple')
     def test_image_transform_no_value(self, scale_simple):
         """Return an invisible image when no value is provided."""

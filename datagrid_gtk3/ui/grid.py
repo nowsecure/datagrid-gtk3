@@ -1391,7 +1391,6 @@ class DataGridModel(GenericTreeModel):
                     value = ' '.join(value)
             else:
                 value = ''
-
         elif col_dict['transform'] == 'boolean':
             if col_dict['name'] != '__selected':
                 value = self._boolean_transform(value)
@@ -1401,13 +1400,16 @@ class DataGridModel(GenericTreeModel):
 
                 # 0 or null
                 return False
-
         elif col_dict['transform'] == 'image':
             value = self._image_transform(value, visible=visible)
-
         elif col_dict['transform'] == 'datetime':
             if value:
                 value = self._datetime_transform(value)
+            else:
+                return ''
+        elif col_dict['transform'] == 'bytes':
+            if value:
+                value = self._bytes_transform(value)
             else:
                 return ''
         else:
@@ -1491,6 +1493,31 @@ class DataGridModel(GenericTreeModel):
             filename = None
 
         return self._get_pixbuf(filename)
+
+    def _bytes_transform(self, value):
+        """Transform bytes into a human-readable value.
+
+        :param int value: bytes to be humanized
+        :returns: the humanized bytes
+        :rtype: str
+        """
+        if value == 1:
+            return '1 byte'
+
+        for suffix, factor in [
+                ('PB', 1 << 50),
+                ('TB', 1 << 40),
+                ('GB', 1 << 30),
+                ('MB', 1 << 20),
+                ('kB', 1 << 10),
+                ('bytes', 1)]:
+            if value >= factor:
+                value = '%.*f %s' % (1, float(value) / factor, suffix)
+                break
+        else:
+            raise ValueError('Unexpected value: %s' % (value, ))
+
+        return value
 
     def _datetime_transform(self, value):
         """Transform timestamps to ISO 8601 date format.
