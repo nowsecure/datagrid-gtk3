@@ -23,6 +23,9 @@ _MEDIA_FILES = os.path.join(
     "media"
 )
 
+POPUP_OPTIONS_PADDING = 5
+POPUP_MAX_HEIGHT = 500
+
 _no_image_loader = GdkPixbuf.PixbufLoader.new_with_type("png")
 _no_image_loader.write(base64.b64decode("""
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABmJLR0QA/wD/AP+gvaeTAAAACXBI
@@ -34,6 +37,158 @@ _no_image_loader.close()
 # no data there. Due to possible bug on gtk, passing None to it will make it
 # repeat the lastest value read in a row for that column
 NO_IMAGE_PIXBUF = _no_image_loader.get_pixbuf()
+
+
+class ColumnsPopup(Gtk.Window):
+
+    """Popup to select which columns should be displayed on datagrid.
+
+    :param toggle_btn: the toggle button responsible for popping this up
+    :type toggle_btn: :class:`Gtk.ToggleButton`
+    :param controller: the datagrid controller
+    :type controller: :class:`DataGridController`
+    """
+
+    __gsignals__ = {
+        'column-visibility-changed': (GObject.SignalFlags.RUN_FIRST,
+                                      None, (str, bool))
+    }
+
+    def __init__(self, toggle_btn, controller, *args, **kwargs):
+        self._toggle_btn = toggle_btn
+        self._toggle_btn.connect('toggled', self.on_toggle_button_toggled)
+        self._controller = controller
+
+        super(ColumnsPopup, self).__init__(
+            Gtk.WindowType.POPUP, *args, **kwargs)
+
+        self._scrolled_window = Gtk.ScrolledWindow(
+            vscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+            hscrollbar_policy=Gtk.PolicyType.NEVER)
+
+        alignment = Gtk.Alignment()
+        alignment.set_padding(5, 5, 5, 5)
+        alignment.add(self._scrolled_window)
+
+        self.add(alignment)
+
+    ##
+    # Public
+    ##
+
+    def popup(self):
+        """Shows the popup.
+
+        This will show the popup and allow the user to change
+        the columns visibility.
+        """
+        if not self._toggle_btn.get_realized():
+            return
+
+        child = self._scrolled_window.get_child()
+        if child:
+            self._scrolled_window.remove(child)
+
+        vbox = Gtk.VBox()
+        for switch in self._get_switches():
+            vbox.pack_start(switch, expand=False, fill=False,
+                            padding=POPUP_OPTIONS_PADDING)
+
+        self._scrolled_window.add(vbox)
+
+        toplevel = self._toggle_btn.get_toplevel().get_toplevel()
+        if isinstance(toplevel, (Gtk.Window, Gtk.Dialog)):
+            group = toplevel.get_group()
+            if group:
+                group.add_window(self)
+
+        x, y = self._get_position()
+        self.move(x, y)
+        self.show_all()
+
+        allocation = vbox.get_allocation()
+        height = min(allocation.height + 2 * POPUP_OPTIONS_PADDING,
+                     POPUP_MAX_HEIGHT)
+        self.set_size_request(-1, height)
+
+    def popdown(self):
+        """Hides the popup."""
+        if not self._toggle_btn.get_realized():
+            return
+
+        self.hide()
+
+    ##
+    # Private
+    ##
+
+    def _get_position(self):
+        """Get the position to show this popup."""
+        allocation = self._toggle_btn.get_allocation()
+        window = self._toggle_btn.get_window()
+
+        if self._toggle_btn.get_has_window():
+            x_coord = 0
+            y_coord = 0
+        else:
+            x_coord = allocation.x
+            y_coord = allocation.y
+
+        x, y = window.get_root_coords(x_coord, y_coord)
+
+        return x, y + allocation.height
+
+    def _get_switches(self):
+        """Construct the switches based on the actual model columns."""
+        model = self._controller.model
+        if model.display_columns is None:
+            model.display_columns = set(
+                column['name']
+                for column in model.columns
+                if not column['name'].startswith('__')
+            )
+
+        for column in model.columns:
+            if column['name'].startswith('__'):
+                continue
+
+            switch = Gtk.Switch()
+            label = Gtk.Label(column['display'])
+            switch.set_active(column['name'] in model.display_columns)
+
+            hbox = Gtk.HBox(spacing=5)
+            hbox.pack_start(switch, expand=False, fill=True, padding=0)
+            hbox.pack_start(label, expand=True, fill=True, padding=0)
+
+            switch.connect(
+                'notify::active',
+                self.on_column_switch_notify_active, column['name'])
+
+            yield hbox
+
+    ##
+    # Callbacks
+    ##
+
+    def on_toggle_button_toggled(self, widget):
+        """Show switch list of columns to display.
+
+        :param widget: the ToggleButton that launches the list
+        :type widget: :class:`Gtk.ToggleButton`
+        """
+        if widget.get_active():
+            self.popup()
+        else:
+            self.popdown()
+
+    def on_column_switch_notify_active(self, widget, p_spec, name):
+        """Set the list of columns to display based on column checkboxes.
+
+        :param widget: checkbox widget for selected/deselected column
+        :type widget: :class:`Gtk.Switch`
+        :param str name: name of the column to add/remove from list
+        """
+        self.emit('column-visibility-changed', name, widget.get_active())
 
 
 class DataGridContainer(UIFile):
@@ -122,8 +277,10 @@ class DataGridController(object):
         self.container.grid_scrolledwindow.add(self.view)
 
         # select columns toggle button
-        self.container.togglebutton_cols.connect(
-            'toggled', self.on_columns_btn_toggled)
+        self.columns_popup = ColumnsPopup(
+            self.container.togglebutton_cols, self)
+        self.columns_popup.connect('column-visibility-changed',
+                                   self.on_popup_column_visibility_changed)
 
         # date range widgets
         self.container.image_start_date.set_from_file(
@@ -219,71 +376,24 @@ class DataGridController(object):
     # Callbacks
     ###
 
-    def on_columns_btn_toggled(self, widget):
-        """Show checkbox list of columns to display.
-
-        :param widget: the ToggleButton that launches the list
-        :type widget: :class:`Gtk.ToggleButton`
-        """
-        if widget.get_active():
-            dialog = Gtk.Dialog(
-                None, self.container.window,
-                Gtk.DialogFlags.DESTROY_WITH_PARENT | Gtk.DialogFlags.MODAL,
-                (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                 Gtk.STOCK_OK, Gtk.ResponseType.OK)
-            )
-            for column in self.model.columns:
-                if column['name'].startswith('__'):
-                    continue
-
-                switch = Gtk.Switch()
-                label = Gtk.Label(column['display'])
-                switch.set_active(
-                    self.model.display_columns is None or
-                    column['name'] in self.model.display_columns)
-
-                hbox = Gtk.HBox(spacing=5)
-                hbox.pack_start(switch, expand=False, fill=True, padding=0)
-                hbox.pack_start(label, expand=True, fill=True, padding=0)
-                dialog.vbox.pack_start(
-                    hbox, expand=True, fill=True, padding=5)
-
-                switch.connect(
-                    'notify::active',
-                    self.on_column_checkbutton_toggled,
-                    column['name'])
-            dialog.set_decorated(False)
-            dialog.action_area.hide()
-            dialog.show_all()
-            result = dialog.run()
-            if result == Gtk.ResponseType.OK:
-                self.model.data_source.update_selected_columns(
-                    self.model.display_columns
-                )
-                self.view.reset()
-                self.view.set_result(self.view.active_params)
-                widget.set_active(False)
-                dialog.destroy()
-            else:
-                widget.set_active(False)
-                dialog.destroy()
-
-    def on_column_checkbutton_toggled(self, widget, value, name):
+    def on_popup_column_visibility_changed(self, popup, name, value):
         """Set the list of columns to display based on column checkboxes.
 
-        :param widget: checkbox widget for selected/deselected column
-        :type widget: :class:`Gtk.CheckButton`
-        :param str name: name of the column to add/remove from list
+        :param popup: the columns popup
+        :type popup: :class:`ColumnsPopup`
+        :param str name: the name of the columns
+        : param bool value: the new column visibility
         """
-        if self.model.display_columns is None:
-            self.model.display_columns = [
-                column['name'] for column in self.model.columns
-                if not column['name'].startswith('__')]
         if value:
-            self.model.display_columns.append(name)
+            self.model.display_columns.add(name)
         else:
-            self.model.display_columns.remove(name)
-        self.model.display_columns = list(set(self.model.display_columns))
+            self.model.display_columns.discard(name)
+
+        self.model.data_source.update_selected_columns(
+            self.model.display_columns)
+        self.view.reset()
+        self.view.set_result(self.view.active_params)
+
 
     def on_view_selection_changed(self, view):
         """Get the data for a selected record and run optional callback.
@@ -789,7 +899,7 @@ class DataGridModel(GenericTreeModel):
             if column['transform'] == 'datetime':
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
-        self.display_columns = self.data_source.get_selected_columns()
+        self.display_columns = None
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
 
