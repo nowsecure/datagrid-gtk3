@@ -28,8 +28,8 @@
                 <property name="can_focus">False</property>
                 <property name="spacing">5</property>
                 <child>
-                  <object class="GtkToggleButton" id="togglebutton_cols">
-                    <property name="label" translatable="yes">Columns</property>
+                  <object class="GtkToggleButton" id="togglebutton_options">
+                    <property name="label" translatable="yes">Options</property>
                     <property name="use_action_appearance">False</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>

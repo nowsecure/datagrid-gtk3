@@ -40,7 +40,7 @@ _no_image_loader.close()
 NO_IMAGE_PIXBUF = _no_image_loader.get_pixbuf()
 
 
-class ColumnsPopup(Gtk.Window):
+class OptionsPopup(Gtk.Window):
 
     """Popup to select which columns should be displayed on datagrid.
 
@@ -50,9 +50,13 @@ class ColumnsPopup(Gtk.Window):
     :type controller: :class:`DataGridController`
     """
 
+    (VIEW_TREE,
+     VIEW_ICON) = range(2)
+
     __gsignals__ = {
         'column-visibility-changed': (GObject.SignalFlags.RUN_FIRST,
-                                      None, (str, bool))
+                                      None, (str, bool)),
+        'view-changed': (GObject.SignalFlags.RUN_FIRST, None, (int, ))
     }
 
     def __init__(self, toggle_btn, controller, *args, **kwargs):
@@ -61,7 +65,7 @@ class ColumnsPopup(Gtk.Window):
             'toggled', self.on_toggle_button_toggled)
         self._controller = controller
 
-        super(ColumnsPopup, self).__init__(
+        super(OptionsPopup, self).__init__(
             Gtk.WindowType.POPUP, *args, **kwargs)
 
         self.connect('button-press-event', self.on_button_press_event)
@@ -95,7 +99,14 @@ class ColumnsPopup(Gtk.Window):
             self._scrolled_window.remove(child)
 
         vbox = Gtk.VBox()
-        for switch in self._get_switches():
+        for switch in self._get_view_options():
+            vbox.pack_start(switch, expand=False, fill=False,
+                            padding=POPUP_OPTIONS_PADDING)
+
+        vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
+                        expand=True, fill=True, padding=POPUP_OPTIONS_PADDING)
+
+        for switch in self._get_visibility_options():
             vbox.pack_start(switch, expand=False, fill=False,
                             padding=POPUP_OPTIONS_PADDING)
 
@@ -173,7 +184,18 @@ class ColumnsPopup(Gtk.Window):
 
         return x, y + allocation.height
 
-    def _get_switches(self):
+    def _get_view_options(self):
+        """Build view options for datagrid"""
+        tv_radio = Gtk.RadioButton(label='Tree View')
+        yield tv_radio
+
+        iv_radio = Gtk.RadioButton(label='Icon View', group=tv_radio)
+        is_iconview = isinstance(self._controller.view, DataGridIconView)
+        iv_radio.set_active(is_iconview)
+        tv_radio.connect('toggled', self.on_treeview_radio_toggled)
+        yield iv_radio
+
+    def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
         model = self._controller.model
         if model.display_columns is None:
@@ -236,6 +258,15 @@ class ColumnsPopup(Gtk.Window):
         # if the click was outside this window, hide it
         if not intersection[0]:
             self.popdown()
+
+    def on_treeview_radio_toggled(self, widget):
+        """Handle changes on the views radio.
+
+        Emit 'view-changed' when the radio selection changes
+        """
+        self.emit('view-changed',
+                  self.VIEW_TREE if widget.get_active() else self.VIEW_ICON)
+        self.popdown()
 
     def on_toggle_button_toggled(self, widget):
         """Show switch list of columns to display.
@@ -339,15 +370,26 @@ class DataGridController(object):
         self.container = container
         self.selected_record_callback = selected_record_callback
         vscroll = container.grid_scrolledwindow.get_vadjustment()
-        self.view = DataGridView(None, vscroll, has_checkboxes)
-        self.view.connect('cursor-changed', self.on_view_selection_changed)
+        vscroll.connect('value-changed', self.on_scrolled)
+
+        self.tree_view = DataGridView(None, has_checkboxes=has_checkboxes)
+        self.icon_view = DataGridIconView(None)
+
+        self.tree_view.connect('cursor-changed',
+                               self.on_treeview_cursor_changed)
+        self.icon_view.connect('selection-changed',
+                               self.on_iconview_selection_changed)
+
+        # The treview will be the default view
+        self.view = self.tree_view
         self.container.grid_scrolledwindow.add(self.view)
 
         # select columns toggle button
-        self.columns_popup = ColumnsPopup(
-            self.container.togglebutton_cols, self)
-        self.columns_popup.connect('column-visibility-changed',
-                                   self.on_popup_column_visibility_changed)
+        options_popup = OptionsPopup(
+            self.container.togglebutton_options, self)
+        options_popup.connect('column-visibility-changed',
+                              self.on_popup_column_visibility_changed)
+        options_popup.connect('view-changed', self.on_popup_view_changed)
 
         # date range widgets
         self.container.image_start_date.set_from_file(
@@ -389,7 +431,8 @@ class DataGridController(object):
                                    self.get_full_path,
                                    self.decode_fallback)
         self.model.connect('data-loaded', self.on_data_loaded)
-        self.view.model = self.model
+        for view in [self.tree_view, self.icon_view]:
+            view.model = self.model
 
         liststore_date_cols = Gtk.ListStore(str, str)
         if self.model.datetime_columns:
@@ -436,18 +479,34 @@ class DataGridController(object):
             for widget in widgets:
                 widget.show()
 
-        self.view.reset()
-        self.view.set_result()
+        self.view.refresh()
 
     ###
     # Callbacks
     ###
 
+    def on_scrolled(self, vadj):
+        """Load new records upon scroll to end of visible rows.
+
+        :param vadj: Adjustment widget associated with vertical scrollbar
+        :type vadj: :class:`Gtk.Adjustment`
+        """
+        scrolled_to_bottom = (
+            vadj.get_value() == (vadj.get_upper() - vadj.get_page_size()) or
+            vadj.get_page_size() == vadj.get_upper())
+
+        if scrolled_to_bottom:
+            self.view.active_params['page'] = self.view.active_page + 1
+            if self.model.add_rows(self.view.active_params):
+                self.view.active_page += 1
+
+        return False
+
     def on_popup_column_visibility_changed(self, popup, name, value):
         """Set the list of columns to display based on column checkboxes.
 
         :param popup: the columns popup
-        :type popup: :class:`ColumnsPopup`
+        :type popup: :class:`OptionsPopup`
         :param str name: the name of the columns
         : param bool value: the new column visibility
         """
@@ -458,11 +517,42 @@ class DataGridController(object):
 
         self.model.data_source.update_selected_columns(
             self.model.display_columns)
-        self.view.reset()
-        self.view.set_result(self.view.active_params)
+        self.view.refresh(self.view.active_params)
 
+    def on_popup_view_changed(self, popup, new_view):
+        """Set the actual view based on the options popup option.
 
-    def on_view_selection_changed(self, view):
+        :param popup: the columns popup
+        :type popup: :class:`OptionsPopup`
+        :param int new_view: either :attr:`OptionsPopup.VIEW_TREE` or
+            :attr:`OptionsPopup.VIEW_ICON`
+        """
+        if new_view == OptionsPopup.VIEW_ICON:
+            self.view = self.icon_view
+            self.model.image_max_size = 100.0
+        elif new_view == OptionsPopup.VIEW_TREE:
+            self.view = self.tree_view
+            self.model.image_max_size = 24.0
+        else:
+            raise AssertionError("Unrecognized option %r" % (new_view, ))
+
+        child = self.container.grid_scrolledwindow.get_child()
+        self.container.grid_scrolledwindow.remove(child)
+        self.container.grid_scrolledwindow.add(self.view)
+        self.view.show_all()
+
+        # FIXME: Now that we have 2 possible view, maybe we should let the
+        # controller handle active_params?
+        self.view.active_params = child.active_params
+
+        self.view.refresh()
+        # FIXME: Is there a way to keep the selection after the view was
+        # refreshed? The actual selected paths are not guaranteed to be the
+        # same, so how can we get them again?
+        if self.selected_record_callback:
+            self.selected_record_callback(None)
+
+    def on_treeview_cursor_changed(self, view):
         """Get the data for a selected record and run optional callback.
 
         :param view: The treeview containing the row
@@ -471,12 +561,28 @@ class DataGridController(object):
         """
         selection = view.get_selection()
         model, row_iterator = selection.get_selected()
-        if row_iterator:
-            row = model[row_iterator]
-            selected_id = row[1]
-            record = self.model.data_source.get_single_record(selected_id)
-            if self.selected_record_callback:
-                self.selected_record_callback(record)
+        if row_iterator and self.selected_record_callback:
+            record = self.model.data_source.get_single_record(
+                model[row_iterator][1])
+            self.selected_record_callback(record)
+        elif self.selected_record_callback:
+            self.selected_record_callback(None)
+
+    def on_iconview_selection_changed(self, view):
+        """Get the data for a selected record and run optional callback.
+
+        :param view: The icon view containing the selected record
+        :type view: :class:`Gtk.IconView`
+        """
+        selections = view.get_selected_items()
+        row_iterator = selections and self.model.get_iter(selections[0])
+        if row_iterator and self.selected_record_callback:
+            model = view.get_model()
+            record = self.model.data_source.get_single_record(
+                model[row_iterator][1])
+            self.selected_record_callback(record)
+        elif self.selected_record_callback:
+            self.selected_record_callback(None)
 
     def on_data_loaded(self, model, total_recs):
         """Update the total records label.
@@ -588,8 +694,7 @@ class DataGridController(object):
             else:
                 if update_dict:
                     self.view.active_params['where'] = update_dict
-        self.view.reset()
-        self.view.set_result(self.view.active_params)
+        self.view.refresh(self.view.active_params)
 
 
 class DataGridView(Gtk.TreeView):
@@ -598,26 +703,28 @@ class DataGridView(Gtk.TreeView):
 
     :param model: The model providing the tabular data for the grid
     :type model: :class:`DataGridModel`
-    :param vscroll: List of keys to delete from ``where`` parameters
-    :type vscroll: :class:`Gtk.Adjustment`
     :param bool has_checkboxes: Whether record rows have a checkbox
 
     """
+
+    has_checkboxes = GObject.property(type=bool, default=True)
 
     # Column widths
     MIN_WIDTH = 40
     MAX_WIDTH = 400
     SAMPLE_SIZE = 50
 
-    def __init__(self, model, vscroll, has_checkboxes=True):
-        """Set the model and setup scroll bar."""
-        super(DataGridView, self).__init__()
-        self.model = model
-        self.has_checkboxes = has_checkboxes
+    def __init__(self, model, *args, **kwargs):
+        """
+        """
+        super(DataGridView, self).__init__(*args, **kwargs)
 
-        vscroll.connect('value-changed', self.on_scrolled)
         self.connect_after('notify::model', self.after_notify_model)
 
+        # FIXME: Ideally, we should pass model directly to treeview and get
+        # it from self.get_model instead of here. We would need to refresh
+        # it first tough
+        self.model = model
         self.tv_columns = []
         self.check_btn_toggle_all = None
         self.check_btn_toggled_id = None
@@ -627,7 +734,11 @@ class DataGridView(Gtk.TreeView):
         self.active_params = {}
         self.active_page = 0
 
-    def set_result(self, params=None):
+    ###
+    # Public
+    ###
+
+    def refresh(self, params=None):
         """Set the result and update the grid.
 
         An example of the ``params`` dict looks like this::
@@ -648,27 +759,18 @@ class DataGridView(Gtk.TreeView):
         :param params: Dictionary of parameters
         :type params: dict
         """
-        old_model = self.get_model()
-        if old_model:
-            del old_model
+        self.set_model(None)
         self.model.refresh(params)
         self.set_model(self.model)
-        self._setup_columns()
 
-    def reset(self):
-        """Reset the grid."""
-        old_model = self.get_model()
-        if old_model:
-            del old_model
-        model = Gtk.ListStore(int)
-        self.set_model(model)
-        while self.get_columns():
-            col = self.get_column(0)
-            self.remove_column(col)
         self.active_page = 0
         if 'page' in self.active_params:
-            self.active_params.pop('page')
+            del self.active_params['page']
 
+        for col in self.get_columns()[:]:
+            self.remove_column(col)
+
+        self._setup_columns()
 
     ###
     # Callbacks
@@ -700,23 +802,6 @@ class DataGridView(Gtk.TreeView):
         :type iter_: :class:`Gtk.TreeIter`
         """
         self._update_toggle_check_btn_activity()
-
-    def on_scrolled(self, vadj):
-        """Load new records upon scroll to end of visible rows.
-
-        :param vadj: Adjustment widget associated with vertical scrollbar
-        :type vadj: :class:`Gtk.Adjustment`
-        """
-        scrolled_bottom = (
-            vadj.get_value() == (vadj.get_upper() - vadj.get_page_size())
-            or vadj.get_page_size() == vadj.get_upper()
-        )
-        if scrolled_bottom:
-            self.active_params['page'] = self.active_page + 1
-            recs_added = self.model.add_rows(self.active_params)
-            if recs_added:
-                self.active_page += 1
-        return False
 
     def on_toggle(self, cell, path, col_index):
         """Toggle row selected checkbox, and update the model.
@@ -755,8 +840,7 @@ class DataGridView(Gtk.TreeView):
         self.active_sort_column_order = new_sort_order
         desc = sort_order == Gtk.SortType.DESCENDING
         self.active_params.update({'order_by': column, 'desc': desc})
-        self.reset()
-        self.set_result(self.active_params)
+        self.refresh(self.active_params)
 
     def on_select_all_column_clicked(self, check_btn):
         """Select all records in current recordset and update model/view.
@@ -774,8 +858,7 @@ class DataGridView(Gtk.TreeView):
         ids = self.model.data_source.get_all_record_ids(where_params)
         self.model.update_data_source('__selected', val, ids)
 
-        self.reset()
-        self.set_result(self.active_params)
+        self.refresh(self.active_params)
 
     ###
     # Private
@@ -924,6 +1007,64 @@ class DataGridView(Gtk.TreeView):
         return width
 
 
+class DataGridIconView(Gtk.IconView):
+
+    """A ``Gtk.IconView`` for displaying data from a ``DataGridModel``.
+
+    :param model: The model providing the tabular data for the grid
+    :type model: :class:`DataGridModel`
+
+    """
+
+    def __init__(self, model, *args, **kwargs):
+        super(DataGridIconView, self).__init__(*args, **kwargs)
+
+        # FIXME: Ideally, we should pass model directly to treeview and get
+        # it from self.get_model instead of here. We would need to refresh
+        # it first tough
+        self.model = model
+        self.active_page = 0
+        self.active_params = {}
+
+    ###
+    # Public
+    ###
+
+    def refresh(self, params=None):
+        """Set the result and update the grid.
+
+        An example of the ``params`` dict looks like this::
+
+            {
+                'order_by': 'title',
+                'where':
+                {
+                    'search':
+                    {
+                        'operator': '=',
+                        'param': 'Google'
+                    }
+                },
+                'desc': False
+            }
+
+        :param params: Dictionary of parameters
+        :type params: dict
+        """
+        self.set_model(None)
+        self.model.refresh(params)
+        self.set_model(self.model)
+
+        self.active_page = 0
+        if 'page' in self.active_params:
+            del self.active_params['page']
+
+        for column_index, column in enumerate(self.model.columns):
+            if column['transform'] == 'image':
+                self.set_pixbuf_column(column_index)
+                break
+
+
 class DataGridModel(GenericTreeModel):
 
     """Underlying model for data grid view.
@@ -949,6 +1090,8 @@ class DataGridModel(GenericTreeModel):
         'data-loaded': (GObject.SignalFlags.RUN_FIRST, None, (object,))
     }
 
+    image_max_size = GObject.property(type=float, default=24.0)
+
     MIN_TIMESTAMP = 0  # 1970
     MAX_TIMESTAMP = 2147485547  # 2038
 
@@ -956,6 +1099,7 @@ class DataGridModel(GenericTreeModel):
                  encoding_hint='utf-8'):
         """Set up model."""
         super(DataGridModel, self).__init__()
+
         self.data_source = data_source
         self.get_media_callback = get_media_callback
         self.decode_fallback = decode_fallback
@@ -1136,19 +1280,15 @@ class DataGridModel(GenericTreeModel):
                 pixbuf = GdkPixbuf.Pixbuf.new_from_file(
                     self.get_media_callback(value[7:])
                 )
-                orig_width = pixbuf.get_width()
-                orig_height = pixbuf.get_height()
-                width = int(float(24 * orig_width) / orig_height)
-                pic = pixbuf.scale_simple(width, 24, GdkPixbuf.InterpType.BILINEAR)
                 is_image = True
             except GLib.GError:
                 is_image = False
+
         if not is_image:
-            file_ = 'icons/binary.png'
-            pic = GdkPixbuf.Pixbuf.new_from_file(
-                self.get_media_callback(file_)
-            )
-        return pic
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(
+                self.get_media_callback('icons/image.png'))
+
+        return self._resize_image(pixbuf)
 
     def _datetime_transform(self, value):
         """Transform timestamps to ISO 8601 date format.
@@ -1183,6 +1323,51 @@ class DataGridModel(GenericTreeModel):
 
         iso = dt.isoformat()
         return iso
+
+    def _resize_image(self, pixbuf):
+        """Resize the image if needed to fit :obj:`.image_max_size`.
+
+        :param pixbuf: the pixbuf to resize
+        :type pixbuf: :class:`GdkPixbuf.Pixbuf`
+        :returns: the resized pixbuf
+        :rtype: :class:`GdkPixbuf.Pixbuf`
+        """
+        width = pixbuf.get_width()
+        height = pixbuf.get_height()
+
+        # Check if we need to resize the image
+        if max(width, height) > self.image_max_size:
+            aspect = float(width) / height
+
+            # The minimum acceptable width/height is 1px
+            if width > height:
+                width = self.image_max_size
+                height = max(self.image_max_size / aspect, 1)
+            else:
+                width = max(self.image_max_size * aspect, 1)
+                height = self.image_max_size
+
+            pixbuf = pixbuf.scale_simple(width, height,
+                                         GdkPixbuf.InterpType.BILINEAR)
+
+            # A little optimization. If the aspect was 1:1, no need to copy
+            # it to copy it to the square pixbuf bellow.
+            if aspect == 1:
+                return pixbuf
+
+        # Make sure the image is on the center of the image_max_size
+        square_pic = GdkPixbuf.Pixbuf.new(
+            GdkPixbuf.Colorspace.RGB, True, pixbuf.get_bits_per_sample(),
+            self.image_max_size, self.image_max_size)
+        # Fill with transparent white
+        square_pic.fill(0xffffff00)
+
+        dest_x = (self.image_max_size - width) / 2
+        dest_y = (self.image_max_size - height) / 2
+        pixbuf.copy_area(
+            0, 0, width, height, square_pic, dest_x, dest_y)
+
+        return square_pic
 
     ###
     # Required implementations for GenericTreeModel
