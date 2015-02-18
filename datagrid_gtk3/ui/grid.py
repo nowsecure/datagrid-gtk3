@@ -754,7 +754,7 @@ class DataGridView(Gtk.TreeView):
 
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
-        # it first tough
+        # it first though
         self.model = model
         self.tv_columns = []
         self.check_btn_toggle_all = None
@@ -1026,7 +1026,7 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
         checkbutton = Gtk.CheckButton()
         value = GObject.Value(GObject.TYPE_INT)
         checkbutton.style_get_property('indicator-size', value)
-        # 16 is the default size, as defined herr:
+        # 16 is the default size, as defined here:
         # https://git.gnome.org/browse/gtk+/tree/gtk/gtkcheckbutton.c
         self._checkbutton_size = value.get_int() or 16
 
@@ -1131,7 +1131,7 @@ class DataGridIconView(Gtk.IconView):
         self.pixbuf_column = None
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
-        # it first tough
+        # it first though
         self.model = model
 
         self.connect('button-release-event', self.on_button_release_event)
