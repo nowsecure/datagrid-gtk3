@@ -118,6 +118,7 @@ class DataGridController(object):
         self.selected_record_callback = selected_record_callback
         vscroll = container.grid_scrolledwindow.get_vadjustment()
         self.view = DataGridView(None, vscroll, has_checkboxes)
+        self.view.connect('cursor-changed', self.on_view_selection_changed)
         self.container.grid_scrolledwindow.add(self.view)
 
         # select columns toggle button
