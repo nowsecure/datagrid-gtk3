@@ -1018,6 +1018,9 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
 
     """A cell area renderer with a check box in it."""
 
+    # 16 is the default size, as defined here:
+    # https://git.gnome.org/browse/gtk+/tree/gtk/gtkcheckbutton.c
+    CHECK_BUTTON_DEFAULT_SIZE = 16
     CHECK_BUTTON_OFFSET = 6
 
     def __init__(self, *args, **kwargs):
@@ -1026,9 +1029,8 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
         checkbutton = Gtk.CheckButton()
         value = GObject.Value(GObject.TYPE_INT)
         checkbutton.style_get_property('indicator-size', value)
-        # 16 is the default size, as defined here:
-        # https://git.gnome.org/browse/gtk+/tree/gtk/gtkcheckbutton.c
-        self._checkbutton_size = value.get_int() or 16
+        self._checkbutton_size = (value.get_int() or
+                                  self.CHECK_BUTTON_DEFAULT_SIZE)
 
         self._is_checked = False
 
