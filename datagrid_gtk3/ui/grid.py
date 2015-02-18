@@ -88,7 +88,7 @@ class OptionsPopup(Gtk.Window):
     ##
 
     def popup(self):
-        """Shows the popup.
+        """Show the popup.
 
         This will show the popup and allow the user to change
         the columns visibility.
@@ -133,7 +133,7 @@ class OptionsPopup(Gtk.Window):
             self.popdown()
 
     def popdown(self):
-        """Hides the popup."""
+        """Hide the popup."""
         if not self._toggle_btn.get_realized():
             return
 
@@ -187,7 +187,7 @@ class OptionsPopup(Gtk.Window):
         return x, y + allocation.height
 
     def _get_view_options(self):
-        """Build view options for datagrid"""
+        """Build view options for datagrid."""
         tv_radio = Gtk.RadioButton(label='Tree View')
         yield tv_radio
 
@@ -341,7 +341,7 @@ def default_get_full_path(relative_path):
 
 class DataGridController(object):
 
-    """UI controls to manipulate datagrid model/view
+    """UI controls to manipulate datagrid model/view.
 
     :param container: ``UIFile`` instance providing ``Gtk.Box`` and
         access to GTK widgets for controller
@@ -783,7 +783,7 @@ class DataGridView(Gtk.TreeView):
     ###
 
     def after_notify_model(self, treeview, p_spec):
-        """Track model modification on the treeview
+        """Track model modification on the treeview.
 
         Aftwe the model of this treeview has changed, we need
         to update some connections, like the 'row-changed'
@@ -798,7 +798,7 @@ class DataGridView(Gtk.TreeView):
         model.connect('row-changed', self.on_model_row_changed)
 
     def on_model_row_changed(self, model, path, iter_):
-        """Track row changes on model
+        """Track row changes on model.
 
         :param model: this treeview's model
         :type model: :class:`DataGridModel`
@@ -935,7 +935,7 @@ class DataGridView(Gtk.TreeView):
         self._update_toggle_check_btn_activity()
 
     def _update_toggle_check_btn_activity(self):
-        """Update the "selected" treeview column's checkbox activity
+        """Update the "selected" treeview column's checkbox activity.
 
         This will update the checkbox activity based on the selected
         rows on the model.
@@ -1016,7 +1016,7 @@ class DataGridView(Gtk.TreeView):
 
 class DataGridCellAreaRenderer(Gtk.CellAreaBox):
 
-    """A cell area renderer with a check box in it"""
+    """A cell area renderer with a check box in it."""
 
     CHECK_BUTTON_OFFSET = 6
 
@@ -1037,7 +1037,7 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
     ###
 
     def get_checkbutton_area(self, cell_area):
-        """Get the area to draw the checkbox on the cell area
+        """Get the area to draw the checkbox on the cell area.
 
         :param cell_area: the cell area rectangle
         :type cell_area: `cairo.Rectangle`
@@ -1055,7 +1055,7 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
 
     def do_render(self, ctx, widget, cr, background_area,
                   cell_area, flags, paint_focus):
-        """Render the checkbox on the cell area
+        """Render the checkbox on the cell area.
 
         :param ctx: the cell area context
         :type ctx: `Gtk.CellAreaContext`
@@ -1099,7 +1099,7 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
         style_context.restore()
 
     def do_apply_attributes(self, model, iter_, *args):
-        """Render the checkbox on the cell area
+        """Render the checkbox on the cell area.
 
         :param model: the model to pull values from
         :type model: `DataGridModel`
@@ -1159,7 +1159,7 @@ class DataGridIconView(Gtk.IconView):
     ##
 
     def on_key_press_event(self, window, event):
-        """Handle key press events
+        """Handle key press events.
 
         Toggle the check button when pressing 'Space'
         """
@@ -1181,7 +1181,7 @@ class DataGridIconView(Gtk.IconView):
         return True
 
     def on_button_release_event(self, window, event):
-        """Handle button press events
+        """Handle button press events.
 
         Toggle the check button if we clicked on it.
         """
@@ -1226,7 +1226,7 @@ class DataGridIconView(Gtk.IconView):
     ###
 
     def _toggle_path(self, path):
-        """Toggle the '__selected' value for the given path on model
+        """Toggle the '__selected' value for the given path on model.
 
         :param path: the path to toggle
         :type itr: :class:`Gtk.TreePath`
