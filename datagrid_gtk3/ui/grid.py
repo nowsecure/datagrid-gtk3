@@ -733,7 +733,7 @@ class DataGridView(Gtk.TreeView):
 
     :param model: The model providing the tabular data for the grid
     :type model: :class:`DataGridModel`
-    :param bool has_checkboxes: Whether record rows have a checkbox
+    :keyword bool has_checkboxes: Whether record rows have a checkbox
 
     """
 
@@ -744,10 +744,8 @@ class DataGridView(Gtk.TreeView):
     MAX_WIDTH = 400
     SAMPLE_SIZE = 50
 
-    def __init__(self, model, *args, **kwargs):
-        """
-        """
-        super(DataGridView, self).__init__(*args, **kwargs)
+    def __init__(self, model, **kwargs):
+        super(DataGridView, self).__init__(**kwargs)
 
         self.connect_after('notify::model', self.after_notify_model)
 
@@ -1121,16 +1119,17 @@ class DataGridIconView(Gtk.IconView):
 
     :param model: The model providing the tabular data for the grid
     :type model: :class:`DataGridModel`
+    :keyword bool has_checkboxes: Whether record rows have a checkbox
 
     """
 
     has_checkboxes = GObject.property(type=bool, default=True)
 
-    def __init__(self, model, *args, **kwargs):
+    def __init__(self, model, **kwargs):
         if not 'cell_area' in kwargs:
             kwargs['cell_area'] = DataGridCellAreaRenderer()
 
-        super(DataGridIconView, self).__init__(*args, **kwargs)
+        super(DataGridIconView, self).__init__(**kwargs)
 
         self.pixbuf_column = None
         # FIXME: Ideally, we should pass model directly to treeview and get
