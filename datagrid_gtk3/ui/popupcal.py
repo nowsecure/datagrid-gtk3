@@ -90,7 +90,13 @@ class DateEntry(Gtk.Entry):
         calendar = Gtk.Calendar()
         dialog.vbox.pack_start(calendar, expand=True, fill=True, padding=0)
         dialog.set_decorated(False)
-        dialog.action_area.hide()
+
+        response_clear = 99
+        clear_btn = dialog.add_button('Clear', response_clear)
+        action_area = dialog.get_action_area()
+        action_area.reorder_child(clear_btn, 0)
+        clear_btn.set_sensitive(bool(self.get_date()))
+
         calendar.connect('day_selected_double_click',
                          self.on_day_selected, dialog)
         timestamp = self.timestamp
@@ -103,6 +109,9 @@ class DateEntry(Gtk.Entry):
         result = dialog.run()
         if result == Gtk.ResponseType.OK:
             self.on_day_selected(calendar, dialog)
+        elif result == response_clear:
+            self.set_date(None)
+            dialog.destroy()
         else:
             dialog.destroy()
         self.calendar_dialog = False
