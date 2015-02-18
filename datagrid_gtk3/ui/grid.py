@@ -1160,15 +1160,19 @@ class DataGridIconView(Gtk.IconView):
 
         Toggle the check button when pressing 'Space'
         """
-        if not self.has_checkboxes:
+        # We don't want 'item-activated' signal to be fired on Space, even
+        # if we don't have checkboxes visible. Space should be used
+        # to toggle the checkboxes only
+        space_pressed = event.get_keyval()[1] == Gdk.KEY_space
+        if not space_pressed:
             return False
 
-        if event.get_keyval()[1] != Gdk.KEY_space:
-            return False
+        if not self.has_checkboxes:
+            return space_pressed
 
         selections = self.get_selected_items()
         if not selections:
-            return False
+            return space_pressed
 
         self._toggle_path(selections[0])
         return True
