@@ -434,7 +434,6 @@ class DataGridController(object):
             'search-changed', self.on_search_clicked)
 
         self.container.grid_vbox.show_all()
-        self.model.visible_range = self.view.get_visible_range()
 
         self.bind_datasource(data_source)
 
@@ -508,7 +507,11 @@ class DataGridController(object):
         :param vadj: Adjustment widget associated with vertical scrollbar
         :type vadj: :class:`Gtk.Adjustment`
         """
-        self.model.visible_range = self.view.get_visible_range()
+        # We don't need the visible_range optimization for treeview
+        if self.view is self.icon_view:
+            self.model.visible_range = self.view.get_visible_range()
+        else:
+            self.model.visible_range = None
 
         scrolled_to_bottom = (
             vadj.get_value() == (vadj.get_upper() - vadj.get_page_size()) or
