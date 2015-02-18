@@ -426,6 +426,7 @@ class DataGridController(object):
             'search-changed', self.on_search_clicked)
 
         self.container.grid_vbox.show_all()
+        self.model.visible_range = self.view.get_visible_range()
 
         self.bind_datasource(data_source)
 
@@ -499,6 +500,8 @@ class DataGridController(object):
         :param vadj: Adjustment widget associated with vertical scrollbar
         :type vadj: :class:`Gtk.Adjustment`
         """
+        self.model.visible_range = self.view.get_visible_range()
+
         scrolled_to_bottom = (
             vadj.get_value() == (vadj.get_upper() - vadj.get_page_size()) or
             vadj.get_page_size() == vadj.get_upper())
@@ -955,7 +958,8 @@ class DataGridView(Gtk.TreeView):
         lengths = set()
         model = self.get_model()
         for row in samples:
-            value = model.get_formatted_value(row[colnum], colnum)
+            value = model.get_formatted_value(row[colnum], colnum,
+                                              visible=False)
             if isinstance(value, basestring):
                 lines = value.splitlines()
                 if lines:
@@ -1244,6 +1248,8 @@ class DataGridModel(GenericTreeModel):
         """Set up model."""
         super(DataGridModel, self).__init__()
 
+        self._fallback_images = {}
+        self.visible_range = None
         self.active_params = {}
         self.data_source = data_source
         self.get_media_callback = get_media_callback
@@ -1307,12 +1313,15 @@ class DataGridModel(GenericTreeModel):
         param = {column: value}
         self.data_source.update(param, ids)
 
-    def get_formatted_value(self, value, column_index):
+    def get_formatted_value(self, value, column_index, visible=True):
         """Get the value to display in the cell.
 
         :param value: Value from data source
         :type value: str or int or None
         :param int column_index: Index of the column containing the value
+        :param bool visible: If the value is visible on the view or not.
+            Some transformations (i.e. image) will do some optimizations
+            if the value is not visible
         :return: formatted value
         :rtype: unicode or int or bool or None
         """
@@ -1357,7 +1366,7 @@ class DataGridModel(GenericTreeModel):
 
         elif col_dict['transform'] == 'image':
             if value:
-                value = self._image_transform(value)
+                value = self._image_transform(value, visible=visible)
             else:
                 return NO_IMAGE_PIXBUF
 
@@ -1415,11 +1424,19 @@ class DataGridModel(GenericTreeModel):
         pixbuf = img.render_icon(icon, Gtk.IconSize.MENU)
         return pixbuf
 
-    def _image_transform(self, value):
+    def _image_transform(self, value, visible=True):
         """Render a thumbnail of an image for given path.
 
         :param str value: Path to image file.
         """
+        if not visible:
+            key = (self.image_draw_border, self.image_max_size)
+            fallback = self._fallback_images.get(key)
+            if not fallback:
+                fallback = self._get_pixbuf()
+                self._fallback_images[key] = fallback
+            return fallback
+
         is_image = False
         if value.startswith('file://'):
             # TODO: ensure performance not affected by scaling images
@@ -1485,6 +1502,7 @@ class DataGridModel(GenericTreeModel):
         image.thumbnail(
             (self.image_max_size, self.image_max_size), Image.BICUBIC)
 
+        square_side = self.image_max_size
         if self.image_draw_border:
             image = imageutils.add_border(
                 image, border_size=self.IMAGE_BORDER_SIZE)
@@ -1492,10 +1510,13 @@ class DataGridModel(GenericTreeModel):
                 image, border_size=self.IMAGE_SHADOW_SIZE,
                 offset=(self.IMAGE_SHADOW_OFFSET, self.IMAGE_SHADOW_OFFSET))
 
+            square_side += self.IMAGE_BORDER_SIZE * 2
+            square_side += self.IMAGE_SHADOW_SIZE * 2
+            square_side += self.IMAGE_SHADOW_OFFSET
+
         pixbuf = imageutils.image2pixbuf(image)
         width = pixbuf.get_width()
         height = pixbuf.get_height()
-        square_side = max(width, height, self.image_max_size)
 
         # Make sure the image is on the center of the image_max_size
         square_pic = GdkPixbuf.Pixbuf.new(
@@ -1550,8 +1571,13 @@ class DataGridModel(GenericTreeModel):
 
     def on_get_value(self, rowref, column):
         """Return the value stored in a particular column for the node."""
+        if self.visible_range:
+            visible = self.visible_range[0][0] <= rowref <= self.visible_range[1][0]
+        else:
+            visible = True
+
         raw = self.rows[rowref][column]
-        val = self.get_formatted_value(raw, column)
+        val = self.get_formatted_value(raw, column, visible=visible)
         return val
 
     def on_iter_next(self, rowref):
