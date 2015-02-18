@@ -190,6 +190,12 @@ class OptionsPopup(Gtk.Window):
         yield tv_radio
 
         iv_radio = Gtk.RadioButton(label='Icon View', group=tv_radio)
+        # We can only change to icon view if we have at least one column
+        # with 'image' transformation.
+        iv_radio.set_sensitive(
+            any(c['transform'] == 'image'
+                for c in self._controller.model.columns))
+
         is_iconview = isinstance(self._controller.view, DataGridIconView)
         iv_radio.set_active(is_iconview)
         tv_radio.connect('toggled', self.on_treeview_radio_toggled)
@@ -1108,6 +1114,7 @@ class DataGridIconView(Gtk.IconView):
         self.set_model(self.model)
 
         for column_index, column in enumerate(self.model.columns):
+            # FIXME: Can we have more than one column with image transform?
             if column['transform'] == 'image':
                 self.set_pixbuf_column(column_index)
                 break
