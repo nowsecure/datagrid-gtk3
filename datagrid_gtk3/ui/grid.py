@@ -26,9 +26,6 @@ _MEDIA_FILES = os.path.join(
     "media"
 )
 
-POPUP_OPTIONS_PADDING = 5
-POPUP_MAX_HEIGHT = 500
-
 _no_image_loader = GdkPixbuf.PixbufLoader.new_with_type("png")
 _no_image_loader.write(base64.b64decode("""
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABmJLR0QA/wD/AP+gvaeTAAAACXBI
@@ -51,6 +48,9 @@ class OptionsPopup(Gtk.Window):
     :param controller: the datagrid controller
     :type controller: :class:`DataGridController`
     """
+
+    OPTIONS_PADDING = 5
+    MAX_HEIGHT = 500
 
     (VIEW_TREE,
      VIEW_ICON) = range(2)
@@ -103,14 +103,14 @@ class OptionsPopup(Gtk.Window):
         vbox = Gtk.VBox()
         for switch in self._get_view_options():
             vbox.pack_start(switch, expand=False, fill=False,
-                            padding=POPUP_OPTIONS_PADDING)
+                            padding=self.OPTIONS_PADDING)
 
         vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-                        expand=True, fill=True, padding=POPUP_OPTIONS_PADDING)
+                        expand=True, fill=True, padding=self.OPTIONS_PADDING)
 
         for switch in self._get_visibility_options():
             vbox.pack_start(switch, expand=False, fill=False,
-                            padding=POPUP_OPTIONS_PADDING)
+                            padding=self.OPTIONS_PADDING)
 
         self._scrolled_window.add(vbox)
 
@@ -125,8 +125,8 @@ class OptionsPopup(Gtk.Window):
         self.show_all()
 
         allocation = vbox.get_allocation()
-        height = min(allocation.height + 2 * POPUP_OPTIONS_PADDING,
-                     POPUP_MAX_HEIGHT)
+        height = min(allocation.height + 2 * self.OPTIONS_PADDING,
+                     self.MAX_HEIGHT)
         self.set_size_request(-1, height)
 
         if not self._popup_grab_window():
