@@ -1270,6 +1270,7 @@ class DataGridModel(GenericTreeModel):
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
 
+    IMAGE_PREFIX = 'file://'
     IMAGE_BORDER_SIZE = 6
     IMAGE_SHADOW_SIZE = 6
     IMAGE_SHADOW_OFFSET = 2
@@ -1471,11 +1472,11 @@ class DataGridModel(GenericTreeModel):
             return fallback
 
         is_image = False
-        if value.startswith('file://'):
+        if value.startswith(self.IMAGE_PREFIX):
             # TODO: ensure performance not affected by scaling images
             #   with large recordsets, use file_ = 'icons/image.png' if so
             # TODO: refactor image scaling to its own utility function
-            filename = value[7:]
+            filename = value[len(self.IMAGE_PREFIX):]
         else:
             filename = None
 
