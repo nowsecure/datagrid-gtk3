@@ -12,9 +12,11 @@ from gi.repository import (
     Pango,
 )
 from pygtkcompat.generictreemodel import GenericTreeModel
+from PIL import Image
 
-from . import popupcal
-from .uifile import UIFile
+from datagrid_gtk3.ui import popupcal
+from datagrid_gtk3.ui.uifile import UIFile
+from datagrid_gtk3.utils import imageutils
 
 GRID_LABEL_MAX_LENGTH = 100
 _MEDIA_FILES = os.path.join(
@@ -1231,7 +1233,8 @@ class DataGridModel(GenericTreeModel):
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
 
-    IMAGE_BORDER_SIZE = 5
+    IMAGE_BORDER_SIZE = 6
+    IMAGE_SHADOW_SIZE = 6
     IMAGE_SHADOW_OFFSET = 2
     MIN_TIMESTAMP = 0  # 1970
     MAX_TIMESTAMP = 2147485547  # 2038
@@ -1422,19 +1425,11 @@ class DataGridModel(GenericTreeModel):
             # TODO: ensure performance not affected by scaling images
             #   with large recordsets, use file_ = 'icons/image.png' if so
             # TODO: refactor image scaling to its own utility function
-            try:
-                pixbuf = GdkPixbuf.Pixbuf.new_from_file(
-                    self.get_media_callback(value[7:])
-                )
-                is_image = True
-            except GLib.GError:
-                is_image = False
+            filename = value[7:]
+        else:
+            filename = None
 
-        if not is_image:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file(
-                self.get_media_callback('icons/image.png'))
-
-        return self._resize_image(pixbuf)
+        return self._get_pixbuf(filename)
 
     def _datetime_transform(self, value):
         """Transform timestamps to ISO 8601 date format.
@@ -1470,36 +1465,37 @@ class DataGridModel(GenericTreeModel):
         iso = dt.isoformat()
         return iso
 
-    def _resize_image(self, pixbuf):
+    def _get_pixbuf(self, path=None):
         """Resize the image if needed to fit :obj:`.image_max_size`.
 
-        :param pixbuf: the pixbuf to resize
-        :type pixbuf: :class:`GdkPixbuf.Pixbuf`
+        :param str image: the image path or `None` to use a fallback image
         :returns: the resized pixbuf
         :rtype: :class:`GdkPixbuf.Pixbuf`
         """
+        fallback = self.get_media_callback('icons/image.png')
+        path = path or fallback
+
+        try:
+            image = Image.open(path)
+            image.load()
+        except IOError:
+            # If the image is damaged for some reason, use fallback
+            image = Image.open(fallback)
+
+        image.thumbnail(
+            (self.image_max_size, self.image_max_size), Image.BICUBIC)
+
+        if self.image_draw_border:
+            image = imageutils.add_border(
+                image, border_size=self.IMAGE_BORDER_SIZE)
+            image = imageutils.add_drop_shadow(
+                image, border_size=self.IMAGE_SHADOW_SIZE,
+                offset=(self.IMAGE_SHADOW_OFFSET, self.IMAGE_SHADOW_OFFSET))
+
+        pixbuf = imageutils.image2pixbuf(image)
         width = pixbuf.get_width()
         height = pixbuf.get_height()
-
-        # Check if we need to resize the image
-        if max(width, height) > self.image_max_size:
-            aspect = float(width) / height
-
-            # The minimum acceptable width/height is 1px
-            if width > height:
-                width = self.image_max_size
-                height = max(self.image_max_size / aspect, 1)
-            else:
-                width = max(self.image_max_size * aspect, 1)
-                height = self.image_max_size
-
-            pixbuf = pixbuf.scale_simple(width, height,
-                                         GdkPixbuf.InterpType.BILINEAR)
-
-        square_side = self.image_max_size
-        if self.image_draw_border:
-            square_side += self.IMAGE_BORDER_SIZE * 2
-            square_side += self.IMAGE_SHADOW_OFFSET
+        square_side = max(width, height, self.image_max_size)
 
         # Make sure the image is on the center of the image_max_size
         square_pic = GdkPixbuf.Pixbuf.new(
@@ -1510,31 +1506,6 @@ class DataGridModel(GenericTreeModel):
 
         dest_x = (square_side - width) / 2
         dest_y = (square_side - height) / 2
-
-        if self.image_draw_border:
-            # Make sure we are still drawing the image at the center
-            # after we after drawing the shadow (the shadow will make the
-            # image expand 2 pixels to the right and to the bottom)
-            dest_x -= self.IMAGE_SHADOW_OFFSET / 2
-            dest_y -= self.IMAGE_SHADOW_OFFSET / 2
-            sub_x = dest_x - self.IMAGE_BORDER_SIZE
-            sub_y = dest_y - self.IMAGE_BORDER_SIZE
-            addition = self.IMAGE_BORDER_SIZE * 2
-
-            # Shadow
-            sub_shadow = square_pic.new_subpixbuf(
-                sub_x + self.IMAGE_SHADOW_OFFSET,
-                sub_y + self.IMAGE_SHADOW_OFFSET,
-                width + addition, height + addition)
-            sub_shadow.fill(0xd3d7cfff)
-            del sub_shadow
-
-            # White border
-            sub_border = square_pic.new_subpixbuf(
-                sub_x, sub_y,
-                width + addition, height + addition)
-            sub_border.fill(0xffffffff)
-            del sub_border
 
         pixbuf.copy_area(
             0, 0, width, height, square_pic, dest_x, dest_y)
