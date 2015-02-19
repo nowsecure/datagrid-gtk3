@@ -20,6 +20,30 @@ from db import EmptyDataSource
 
 logger = logging.getLogger(__name__)
 
+# TODO: Add config for all tables
+_EXAMPLE_DATABASES = {
+    'album': None,
+    'artist': None,
+    'employee': [
+        ('EmployeeId', (long, None)),
+        ('LastName', (str, None)),
+        ('FirstName', (str, None)),
+        ('Title', (str, None)),
+        ('ReportsTo', (long, None)),
+        ('BirthDate', (long, 'datetime')),
+        ('HireDate', (str, None)),
+        ('Address', (str, None)),
+        ('City', (str, None)),
+        ('State', (str, None)),
+        ('Country', (str, None)),
+        ('PostalCode', (str, None)),
+        ('Phone', (str, None)),
+        ('Fax', (str, None)),
+        ('Email', (str, None)),
+    ],
+    'genre': None,
+    'track': None,
+}
 
 def setup_logging():
     """Sets up logging to std out."""
@@ -81,17 +105,17 @@ def main():
     column.pack_start(cell, True)
     column.add_attribute(cell, 'text', 0)
 
-    table_store = Gtk.ListStore(str)
-    for item in "album artist employee genre track".split():
-        table_store.append([item])
+    table_store = Gtk.ListStore(str, object)
+    for database, config in _EXAMPLE_DATABASES.iteritems():
+        table_store.append([database, config])
     table_list.set_model(table_store)
 
     def select_table(selection):
         model, iterator = selection.get_selected()
         if iterator:
-            table_name = model[iterator][0]
+            table_name, config = model[iterator]
             controller.bind_datasource(SQLiteDataSource(
-                db_path, table_name,
+                db_path, table_name, config=config,
                 ensure_selected_column=False, display_all=True
             ))
     table_list.get_selection().connect("changed", select_table)
