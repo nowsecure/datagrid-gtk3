@@ -187,8 +187,8 @@ class DataGridController(object):
             combox_date_cols.set_active(0)
             combox_date_cols.connect('changed', self.on_date_change, None)
 
-        # Hide date column selection if there is only one to choose from
-        if len(liststore_date_cols) == 1:
+        # Hide date column selection if there can be no choice
+        if len(liststore_date_cols) < 2:
             combox_date_cols.hide()
             self.container.date_column_label.hide()
         else:
