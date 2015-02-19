@@ -1464,7 +1464,7 @@ class DataGridModel(GenericTreeModel):
 
         :param str value: Path to image file.
         """
-        if value is None:
+        if not value:
             invisible_img = self._invisible_images.get(self.image_max_size)
             if not invisible_img:
                 invisible_img = NO_IMAGE_PIXBUF.scale_simple(
