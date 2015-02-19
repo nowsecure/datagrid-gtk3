@@ -1285,6 +1285,7 @@ class DataGridModel(GenericTreeModel):
         """Set up model."""
         super(DataGridModel, self).__init__()
 
+        self._invisible_images = {}
         self._fallback_images = {}
         self.visible_range = None
         self.active_params = {}
@@ -1402,10 +1403,7 @@ class DataGridModel(GenericTreeModel):
                 return False
 
         elif col_dict['transform'] == 'image':
-            if value:
-                value = self._image_transform(value, visible=visible)
-            else:
-                return NO_IMAGE_PIXBUF
+            value = self._image_transform(value, visible=visible)
 
         elif col_dict['transform'] == 'datetime':
             if value:
@@ -1466,6 +1464,15 @@ class DataGridModel(GenericTreeModel):
 
         :param str value: Path to image file.
         """
+        if value is None:
+            invisible_img = self._invisible_images.get(self.image_max_size)
+            if not invisible_img:
+                invisible_img = NO_IMAGE_PIXBUF.scale_simple(
+                    self.image_max_size, self.image_max_size,
+                    GdkPixbuf.InterpType.NEAREST)
+                self._invisible_images[self.image_max_size] = invisible_img
+            return invisible_img
+
         if not visible:
             key = (self.image_draw_border, self.image_max_size)
             fallback = self._fallback_images.get(key)
