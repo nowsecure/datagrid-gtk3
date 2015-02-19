@@ -223,7 +223,6 @@ class SQLiteDataSource(DataSource):
         :return: row of data
         :rtype: tuple
         """
-        record_id = int(record_id)
         if table is None:
             table = self.table
         sql_statement = 'SELECT * FROM %s WHERE %s = ?' % (
