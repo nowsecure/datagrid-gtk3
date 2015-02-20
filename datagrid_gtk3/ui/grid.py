@@ -187,6 +187,31 @@ class DataGridController(object):
             combox_date_cols.set_active(0)
             combox_date_cols.connect('changed', self.on_date_change, None)
 
+        # Hide date column selection if there can be no choice
+        if len(liststore_date_cols) < 2:
+            combox_date_cols.hide()
+            self.container.date_column_label.hide()
+        else:
+            # They might have been hidden on a previous bind call.
+            combox_date_cols.show()
+            self.container.date_column_label.show()
+
+        # If the are no date columns, hide the date range controls as well
+        widgets = (
+            self.container.image_start_date,
+            self.container.vbox_start_date,
+            self.container.label_date_to,
+            self.container.image_end_date,
+            self.container.vbox_end_date,
+            self.container.vseparator2
+        )
+        if len(liststore_date_cols) == 0:
+            for widget in widgets:
+                widget.hide()
+        else:
+            for widget in widgets:
+                widget.show()
+
         self.view.reset()
         self.view.set_result()
 
