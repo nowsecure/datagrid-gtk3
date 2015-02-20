@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-__author__ = 'viaForensics'
-__email__ = 'info@viaforensics.com'
+__author__ = 'NowSecure, Inc.'
+__email__ = 'info@nowsecure.com'
 __version__ = '0.1.0'
 
 import logging

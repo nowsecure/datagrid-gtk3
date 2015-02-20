@@ -56,7 +56,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'datagrid-gtk3'
-copyright = u'2014, viaForensics'
+copyright = u'2015, NowSecure, Inc.'
 
 # The version info for the project you're documenting, acts as replacement
 # for |version| and |release|, also used in various other places throughout
@@ -210,7 +210,7 @@ latex_elements = {
 latex_documents = [
     ('index', 'datagrid-gtk3.tex',
      u'datagrid-gtk3 Documentation',
-     u'viaForensics', 'manual'),
+     u'NowSecure', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at
@@ -241,7 +241,7 @@ latex_documents = [
 man_pages = [
     ('index', 'datagrid-gtk3',
      u'datagrid-gtk3 Documentation',
-     [u'viaForensics'], 1)
+     [u'NowSecure'], 1)
 ]
 
 # If true, show URL addresses after external links.
@@ -256,7 +256,7 @@ man_pages = [
 texinfo_documents = [
     ('index', 'datagrid-gtk3',
      u'datagrid-gtk3 Documentation',
-     u'viaForensics',
+     u'NowSecure',
      'datagrid-gtk3',
      'One line description of project.',
      'Miscellaneous'),
