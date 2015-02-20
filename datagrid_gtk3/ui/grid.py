@@ -4,6 +4,7 @@ import contextlib
 import base64
 import os
 from datetime import datetime
+import itertools
 
 from gi.repository import (
     GObject,
@@ -893,16 +894,19 @@ class DataGridView(Gtk.TreeView):
             self.check_btn_toggle_all = check_btn
             self.append_column(col)
 
-        samples = self.model.rows[:self.SAMPLE_SIZE]
+        # FIXME: We should find a better way for hiding this columns.
+        # A way to specify the visibility on the columns config would be nice.
+        dont_display = set([
+            self.model.data_source.ID_COLUMN,
+            self.model.data_source.PARENT_ID_COLUMN,
+            '__selected'])
+
+        samples = itertools.islice(self.model.iter_rows(), self.SAMPLE_SIZE)
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
             display = (self.model.display_columns is None
                        or item in self.model.display_columns)
-            if not self.model.data_source.display_all:
-                # First column is "_selected" checkbox,
-                # second is invisible primary key ID
-                display = display and column_index > 1
-            if display:
+            if display and column['name'] not in dont_display:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:
                     renderer = Gtk.CellRendererPixbuf()
@@ -1324,6 +1328,8 @@ class DataGridModel(GenericTreeModel):
         """
         self.active_params['page'] = self.active_params.get('page', 0) + 1
 
+        # FIXME: Is it right to call row_inserted with the same path/itr
+        # for all the new rows?
         path = (len(self.rows) - 1,)
         itr = self.get_iter(path)
         self.data_source.load(self.active_params)
@@ -1435,13 +1441,56 @@ class DataGridModel(GenericTreeModel):
         :param bool emit_event: if we should call :meth:`.row_changed`.
             Be sure to know what you are doing before passind `False` here
         """
-        path = self.get_path(itr)[0]
-        self.rows[path][column] = value
+        path = self.get_path(itr)
+        # path and iter are the same in this model
+        row = self._get_row_by_iter(path)
+        row.data[column] = value
         id_ = self.get_value(itr, 1)
         self.update_data_source(
             self.columns[column]['name'], value, [int(id_)])
         if emit_event:
             self.row_changed(path, itr)
+
+    def iter_rows(self):
+        """Iterate over the rows of the model.
+
+        This will iterate using a depth-first algorithm. That means that,
+        on a hierarchy like this::
+
+            A
+              B
+                E
+              C
+                F
+                  G
+                  H
+              D
+
+        This would generate an iteration like::
+
+            [ A, B, E, C, F, G, H, D ]
+
+        """
+        def _iter_children_aux(parent):
+            for row in parent:
+                yield row
+                for inner_row in _iter_children_aux(row):
+                    yield inner_row
+
+        for row in _iter_children_aux(self.rows):
+            yield row.data
+
+    ###
+    # Private
+    ###
+
+    def _get_row_by_iter(self, iter_):
+        def get_row_by_iter_aux(iter_aux, rows):
+            if len(iter_aux) == 1:
+                return rows[iter_aux[0]]
+            return get_row_by_iter_aux(iter_aux[1:], rows[iter_aux[0]])
+
+        return get_row_by_iter_aux(iter_, self.rows)
 
     ###
     # Transforms
@@ -1610,7 +1659,7 @@ class DataGridModel(GenericTreeModel):
 
     def on_get_flags(self):
         """Return the GtkTreeModelFlags for this particular type of model."""
-        return Gtk.TreeModelFlags.LIST_ONLY
+        return Gtk.TreeModelFlags.ITERS_PERSIST
 
     def on_get_n_columns(self):
         """Return the number of columns in the model."""
@@ -1631,52 +1680,93 @@ class DataGridModel(GenericTreeModel):
 
     def on_get_path(self, rowref):
         """Return the tree path (a tuple of indices) for a particular node."""
-        return (rowref,)
+        return tuple(rowref)
 
     def on_get_iter(self, path):
         """Return the node corresponding to the given path (node is path)."""
-        if path[0] < len(self.rows):
-            return path[0]
-
-        return None
+        try:
+            # row and path are the same in this model. We just need
+            # to make sure that the iter is valid
+            self._get_row_by_iter(path)
+        except IndexError:
+            return None
+        else:
+            return tuple(path)
 
     def on_get_value(self, rowref, column):
         """Return the value stored in a particular column for the node."""
         if self.visible_range:
-            visible = self.visible_range[0][0] <= rowref <= self.visible_range[1][0]
+            start = tuple(self.visible_range[0])
+            end = tuple(self.visible_range[1])
+            visible = start <= rowref <= end
         else:
             visible = True
 
-        raw = self.rows[rowref][column]
+        row = self._get_row_by_iter(rowref)
+        raw = row.data[column]
         val = self.get_formatted_value(raw, column, visible=visible)
         return val
 
     def on_iter_next(self, rowref):
         """Return the next node at this level of the tree."""
-        if rowref + 1 < len(self.rows):
-            return rowref + 1
+        if rowref is None:
+            return None
 
-        return None
+        # root node
+        if len(rowref) == 1:
+            rows = self.rows
+            next_value = (rowref[0] + 1, )
+        else:
+            parentref = rowref[:-1]
+            rows = self._get_row_by_iter(parentref)
+            next_value = parentref + (rowref[-1] + 1, )
+
+        if not next_value[-1] < len(rows):
+            return None
+
+        return next_value
 
     def on_iter_children(self, rowref):
         """Return the first child of this node."""
-        return 0
+        if rowref is None:
+            return (0, )
+
+        parent_row = self._get_row_by_iter(rowref)
+        if not len(parent_row):
+            return None
+
+        return rowref + (0, )
 
     def on_iter_has_child(self, rowref):
         """Return true if this node has children."""
-        return False
+        return bool(self._get_row_by_iter(rowref))
 
     def on_iter_n_children(self, rowref):
         """Return the number of children of this node."""
-        return len(self.rows)
+        if rowref is None:
+            return len(self.rows)
+
+        return len(self._get_row_by_iter(rowref))
 
     def on_iter_nth_child(self, parent, n):
         """Return the nth child of this node."""
-        return n
+        if parent is None:
+            parent = ()
+            rows = self.rows
+        else:
+            rows = self._get_row_by_iter(parent)
+
+        if not 0 <= n < len(rows):
+            return None
+
+        return parent + (n, )
 
     def on_iter_parent(self, child):
         """Return the parent of this node."""
-        return None
+        if len(child) == 1:
+            return None
+
+        return child[:-1]
 
     ###
     # END Required implementations for GenericTreeModel

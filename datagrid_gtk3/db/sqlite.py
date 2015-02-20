@@ -18,6 +18,21 @@ from datagrid_gtk3.db import DataSource
 logger = logging.getLogger(__name__)
 
 
+class Node(list):
+
+    """A list that can hold data.
+
+    Just like a simple list, but one can set/get its data
+    from :obj:`.data`.
+
+    :param object data: the data that will be stored in this node
+    """
+
+    def __init__(self, data=None):
+        super(Node, self).__init__()
+        self.data = data
+
+
 class SQLiteDataSource(DataSource):
 
     """SQLite data source especially for use with a `Gtk.TreeModel`.
@@ -57,6 +72,7 @@ class SQLiteDataSource(DataSource):
         'BLOB': str
     }
     ID_COLUMN = 'rowid'
+    PARENT_ID_COLUMN = None
 
     def __init__(self, db_file, table=None, update_table=None, config=None,
                  ensure_selected_column=True, display_all=False, query=None):
@@ -75,6 +91,8 @@ class SQLiteDataSource(DataSource):
             self.update_table = table
         self.config = config
         self.rows = None
+        self._id_column_idx = None
+        self._parent_column_idx = None
         self.columns = self.get_columns()
         column_names = ['"%s"' % col['name'] for col in self.columns]
         self.column_name_str = ', '.join(column_names)
@@ -119,6 +137,10 @@ class SQLiteDataSource(DataSource):
                 bindings = []
                 where_sql = ''
                 order_sql = ''
+                # FIXME: We probably should return rows in this function
+                # instead of setting it to self.rows and having datagrid to
+                # access it after.
+                self.rows = Node()
                 if params:
                     # construct WHERE clause
                     if 'where' in params:
@@ -139,17 +161,46 @@ class SQLiteDataSource(DataSource):
                             if offset >= self.total_recs:
                                 # at end of total records, return no records
                                 #   for paging
-                                results = []
                                 last_page = True
                 if not last_page:
-                    sql = 'SELECT %s FROM %s %s %s LIMIT %d OFFSET %d' % (
-                        self.column_name_str, self.table, where_sql,
-                        order_sql, self.MAX_RECS, offset
-                    )
-                    logger.debug('SQL: %s, %s', sql, bindings)
-                    cursor.execute(sql, bindings)
-                    results = cursor.fetchall()
-                self.rows = results
+                    # FIXME: How to properly do lazy loading in this case?
+                    if self.PARENT_ID_COLUMN:
+                        def get_results(parent):
+                            operator = 'is' if parent is None else '='
+                            if where_sql:
+                                parent_where = '%s AND %s %s ?' % (
+                                    where_sql, operator, self.PARENT_ID_COLUMN)
+                            else:
+                                parent_where = ' WHERE %s %s ? ' % (
+                                    self.PARENT_ID_COLUMN, operator)
+                            sql = 'SELECT %s FROM %s %s %s' % (
+                                self.column_name_str, self.table,
+                                parent_where, order_sql)
+
+                            bindings_ = bindings + [parent]
+                            logger.debug('SQL: %s, %s', sql, bindings_)
+                            # FIXME: If would be better to do:
+                            #     for row in cursor.execute(sql, bindings_):
+                            #         yield row
+                            # But for that we would need different cursors
+                            cursor.execute(sql, bindings_)
+                            return cursor.fetchall()
+
+                        def build_tree(parent, parent_id):
+                            for row in get_results(parent_id):
+                                node = Node(data=row)
+                                parent.append(node)
+                                build_tree(node, row[self._id_column_idx])
+
+                        build_tree(self.rows, None)
+                    else:
+                        sql = 'SELECT %s FROM %s %s %s LIMIT %d OFFSET %d' % (
+                            self.column_name_str, self.table, where_sql,
+                            order_sql, self.MAX_RECS, offset)
+                        logger.debug('SQL: %s, %s', sql, bindings)
+                        for row in cursor.execute(sql, bindings):
+                            self.rows.append(Node(data=row))
+
                 if first_access:
                     # set the total record count the only the first time the
                     # record set is requested
@@ -422,7 +473,7 @@ class SQLiteDataSource(DataSource):
                 rows = cursor.fetchall()
                 has_selected = False
                 counter = 0
-                for row in rows:
+                for i, row in enumerate(rows):
                     col_defined = False
                     col_name = row[1]
                     if self.config is not None:
@@ -441,6 +492,12 @@ class SQLiteDataSource(DataSource):
                         'type': data_type,
                         'transform': transform
                     }
+
+                    if col_name == self.ID_COLUMN:
+                        self._id_column_idx = i
+                    if col_name == self.PARENT_ID_COLUMN:
+                        self._parent_column_idx = i
+
                     if row[1] == '__selected':
                         col_dict['transform'] = 'boolean'
                         cols.insert(0, col_dict)
@@ -459,6 +516,15 @@ class SQLiteDataSource(DataSource):
                         'transform': 'boolean'
                     }
                     cols.insert(0, col_dict)
+                    has_selected = True
+
+                # If __selected column is present, it was inserted on position
+                # 0, so we need to increase the id/parent columns by 1
+                if has_selected and self._id_column_idx is not None:
+                    self._id_column_idx += 1
+                if has_selected and self._parent_column_idx is not None:
+                    self._parent_column_idx += 1
+
         return cols
 
 
