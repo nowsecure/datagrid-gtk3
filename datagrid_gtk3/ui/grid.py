@@ -583,7 +583,7 @@ class DataGridController(object):
         model, row_iterator = selection.get_selected()
         if row_iterator and self.selected_record_callback:
             record = self.model.data_source.get_single_record(
-                model[row_iterator][1])
+                model[row_iterator][self.model.id_column_idx])
             self.selected_record_callback(record)
         elif self.selected_record_callback:
             self.selected_record_callback(None)
@@ -599,7 +599,7 @@ class DataGridController(object):
         if row_iterator and self.selected_record_callback:
             model = view.get_model()
             record = self.model.data_source.get_single_record(
-                model[row_iterator][1])
+                model[row_iterator][self.model.id_column_idx])
             self.selected_record_callback(record)
         elif self.selected_record_callback:
             self.selected_record_callback(None)
@@ -616,7 +616,7 @@ class DataGridController(object):
 
         row_iterator = view.model.get_iter(path)
         record = self.model.data_source.get_single_record(
-            self.model[row_iterator][1])
+            self.model[row_iterator][self.model.id_column_idx])
         # Why is the pixbuf column on view.pixbuf_column -1 position in this rec?
         self.activated_icon_callback(record, view.pixbuf_column - 1)
 
@@ -1307,6 +1307,8 @@ class DataGridModel(GenericTreeModel):
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
 
+        self.id_column_idx = None
+        self.parent_column_idx = None
         self.rows = None
         self.total_recs = None
 
@@ -1316,6 +1318,8 @@ class DataGridModel(GenericTreeModel):
             del self.active_params['page']
 
         self.rows = self.data_source.load(self.active_params)
+        self.id_column_idx = self.data_source.id_column_idx
+        self.parent_column_idx = self.data_source.parent_column_idx
         self.total_recs = self.data_source.total_recs
         self.emit('data-loaded', self.total_recs)
 
@@ -1442,10 +1446,10 @@ class DataGridModel(GenericTreeModel):
             Be sure to know what you are doing before passind `False` here
         """
         path = self.get_path(itr)
-        # path and iter are the same in this model
+        # path and iter are the same in this model.
         row = self._get_row_by_iter(path)
         row.data[column] = value
-        id_ = self.get_value(itr, 1)
+        id_ = self.get_value(itr, self.id_column_idx)
         self.update_data_source(
             self.columns[column]['name'], value, [int(id_)])
         if emit_event:
@@ -1704,8 +1708,13 @@ class DataGridModel(GenericTreeModel):
 
         row = self._get_row_by_iter(rowref)
         raw = row.data[column]
-        val = self.get_formatted_value(raw, column, visible=visible)
-        return val
+        # Don't format value for id and parent columns. They are not displayed
+        # on the grid and we may need their full values to get their records
+        # (e.g. when the id is a string column)
+        if column in [self.id_column_idx, self.parent_column_idx]:
+            return raw
+        else:
+            return self.get_formatted_value(raw, column, visible=visible)
 
     def on_iter_next(self, rowref):
         """Return the next node at this level of the tree."""

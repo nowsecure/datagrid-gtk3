@@ -90,8 +90,8 @@ class SQLiteDataSource(DataSource):
         else:
             self.update_table = table
         self.config = config
-        self._id_column_idx = None
-        self._parent_column_idx = None
+        self.id_column_idx = None
+        self.parent_column_idx = None
         self.columns = self.get_columns()
         column_names = ['"%s"' % col['name'] for col in self.columns]
         self.column_name_str = ', '.join(column_names)
@@ -186,7 +186,7 @@ class SQLiteDataSource(DataSource):
                             for row in get_results(parent_id):
                                 node = Node(data=row)
                                 parent.append(node)
-                                build_tree(node, row[self._id_column_idx])
+                                build_tree(node, row[self.id_column_idx])
 
                         build_tree(rows, None)
                     else:
@@ -492,9 +492,9 @@ class SQLiteDataSource(DataSource):
                     }
 
                     if col_name == self.ID_COLUMN:
-                        self._id_column_idx = i
+                        self.id_column_idx = i
                     if col_name == self.PARENT_ID_COLUMN:
-                        self._parent_column_idx = i
+                        self.parent_column_idx = i
 
                     if row[1] == '__selected':
                         col_dict['transform'] = 'boolean'
@@ -518,10 +518,10 @@ class SQLiteDataSource(DataSource):
 
                 # If __selected column is present, it was inserted on position
                 # 0, so we need to increase the id/parent columns by 1
-                if has_selected and self._id_column_idx is not None:
-                    self._id_column_idx += 1
-                if has_selected and self._parent_column_idx is not None:
-                    self._parent_column_idx += 1
+                if has_selected and self.id_column_idx is not None:
+                    self.id_column_idx += 1
+                if has_selected and self.parent_column_idx is not None:
+                    self.parent_column_idx += 1
 
         return cols
 
