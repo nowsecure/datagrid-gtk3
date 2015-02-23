@@ -370,8 +370,8 @@ class DataGridController(object):
     MAX_TIMESTAMP = 2147485547  # 2038
 
     def __init__(self, container, data_source, selected_record_callback=None,
-                 activated_icon_callback=None, has_checkboxes=True,
-                 decode_fallback=None, get_full_path=None):
+                 activated_icon_callback=None, activated_row_callback=None,
+                 has_checkboxes=True, decode_fallback=None, get_full_path=None):
         """Setup UI controls and load initial data view."""
         if decode_fallback is None:
             decode_fallback = default_decode_fallback
@@ -384,6 +384,7 @@ class DataGridController(object):
         self.get_full_path = get_full_path
         self.selected_record_callback = selected_record_callback
         self.activated_icon_callback = activated_icon_callback
+        self.activated_row_callback = activated_row_callback
 
         self.vscroll = container.grid_scrolledwindow.get_vadjustment()
         self.vscroll.connect('value-changed', self.on_scrolled)
@@ -393,6 +394,8 @@ class DataGridController(object):
 
         self.tree_view.connect('cursor-changed',
                                self.on_treeview_cursor_changed)
+        self.tree_view.connect('row-activated',
+                               self.on_treeview_row_activated)
         self.icon_view.connect('selection-changed',
                                self.on_iconview_selection_changed)
         self.icon_view.connect('item-activated',
@@ -619,6 +622,28 @@ class DataGridController(object):
             self.model[row_iterator][self.model.id_column_idx])
         # Why is the pixbuf column on view.pixbuf_column -1 position in this rec?
         self.activated_icon_callback(record, view.pixbuf_column - 1)
+
+    def on_treeview_row_activated(self, view, path, column):
+        """Handle row-activated signal on the treeview.
+
+        Run the optional :obj:`.activated_row_callback` when
+        a row gets activated.
+
+        :param view: The treeview containing the row
+        :type view: :class:`Gtk.TreeView`
+        :param path: the activated path
+        :type path: :class:`Gtk.TreePath`
+        :param column: the column that was activated on the row
+        :type column: class:`Gtk.TreeViewColumn`
+
+        """
+        if self.activated_row_callback is None:
+            return
+
+        row = self.model[self.model.get_iter(path)]
+        selected_id = row[self.model.id_column_idx]
+        record = self.model.data_source.get_single_record(selected_id)
+        self.activated_row_callback(record)
 
     def on_data_loaded(self, model, total_recs):
         """Update the total records label.
