@@ -1,4 +1,6 @@
 """Module containing classes for datagrid MVC implementation."""
+
+import contextlib
 import base64
 import os
 from datetime import datetime
@@ -382,8 +384,8 @@ class DataGridController(object):
         self.selected_record_callback = selected_record_callback
         self.activated_icon_callback = activated_icon_callback
 
-        vscroll = container.grid_scrolledwindow.get_vadjustment()
-        vscroll.connect('value-changed', self.on_scrolled)
+        self.vscroll = container.grid_scrolledwindow.get_vadjustment()
+        self.vscroll.connect('value-changed', self.on_scrolled)
 
         self.tree_view = DataGridView(None, has_checkboxes=has_checkboxes)
         self.icon_view = DataGridIconView(None, has_checkboxes=has_checkboxes)
@@ -400,11 +402,11 @@ class DataGridController(object):
         self.container.grid_scrolledwindow.add(self.view)
 
         # select columns toggle button
-        options_popup = OptionsPopup(
+        self.options_popup = OptionsPopup(
             self.container.togglebutton_options, self)
-        options_popup.connect('column-visibility-changed',
-                              self.on_popup_column_visibility_changed)
-        options_popup.connect('view-changed', self.on_popup_view_changed)
+        self.options_popup.connect('column-visibility-changed',
+                                   self.on_popup_column_visibility_changed)
+        self.options_popup.connect('view-changed', self.on_popup_view_changed)
 
         # date range widgets
         self.container.image_start_date.set_from_file(
@@ -753,7 +755,6 @@ class DataGridView(Gtk.TreeView):
         # it from self.get_model instead of here. We would need to refresh
         # it first though
         self.model = model
-        self.tv_columns = []
         self.check_btn_toggle_all = None
         self.check_btn_toggled_id = None
         self.set_rules_hint(True)
@@ -830,7 +831,7 @@ class DataGridView(Gtk.TreeView):
 
         """
         sort_order = widget.get_sort_order()
-        for col in self.tv_columns:
+        for col in self.get_columns():
             # remove sort indicators from inactive cols
             col.set_sort_indicator(False)
         widget.set_sort_indicator(True)
@@ -926,7 +927,6 @@ class DataGridView(Gtk.TreeView):
                     col.set_sort_indicator(True)
                     col.set_sort_order(self.active_sort_column_order)
                 self.append_column(col)
-                self.tv_columns.append(col)
 
         self.set_headers_clickable(True)
         self._update_toggle_check_btn_activity()
