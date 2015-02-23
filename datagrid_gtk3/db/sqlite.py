@@ -151,12 +151,17 @@ class SQLiteDataSource(DataSource):
                                 order_sql = order_sql + ' DESC'
                     # determine OFFSET value for paging
                     if 'page' in params:
+                        # FIXME: If we have a PARENT_ID_COLUMN, all results
+                        # were loaded on first load. How to handle this better?
+                        if self.PARENT_ID_COLUMN:
+                            return []
                         first_access = False
                         if params['page']:
                             offset = params['page'] * self.MAX_RECS
                             if offset >= self.total_recs:
                                 # at end of total records, return no records
                                 #   for paging
+                                return []
                                 last_page = True
                 if not last_page:
                     # FIXME: How to properly do lazy loading in this case?
