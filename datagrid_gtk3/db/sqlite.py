@@ -90,7 +90,6 @@ class SQLiteDataSource(DataSource):
         else:
             self.update_table = table
         self.config = config
-        self.rows = None
         self._id_column_idx = None
         self._parent_column_idx = None
         self.columns = self.get_columns()
@@ -137,10 +136,7 @@ class SQLiteDataSource(DataSource):
                 bindings = []
                 where_sql = ''
                 order_sql = ''
-                # FIXME: We probably should return rows in this function
-                # instead of setting it to self.rows and having datagrid to
-                # access it after.
-                self.rows = Node()
+                rows = Node()
                 if params:
                     # construct WHERE clause
                     if 'where' in params:
@@ -192,14 +188,14 @@ class SQLiteDataSource(DataSource):
                                 parent.append(node)
                                 build_tree(node, row[self._id_column_idx])
 
-                        build_tree(self.rows, None)
+                        build_tree(rows, None)
                     else:
                         sql = 'SELECT %s FROM %s %s %s LIMIT %d OFFSET %d' % (
                             self.column_name_str, self.table, where_sql,
                             order_sql, self.MAX_RECS, offset)
                         logger.debug('SQL: %s, %s', sql, bindings)
                         for row in cursor.execute(sql, bindings):
-                            self.rows.append(Node(data=row))
+                            rows.append(Node(data=row))
 
                 if first_access:
                     # set the total record count the only the first time the
@@ -208,6 +204,8 @@ class SQLiteDataSource(DataSource):
                         self.table, where_sql)
                     cursor.execute(sql, bindings)
                     self.total_recs = int(cursor.fetchone()[0])
+
+                return rows
 
     def update(self, params, ids=None):
         """Update the recordset with a SQL ``UPDATE`` statement.

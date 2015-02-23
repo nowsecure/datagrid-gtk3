@@ -1315,8 +1315,7 @@ class DataGridModel(GenericTreeModel):
         if 'page' in self.active_params:
             del self.active_params['page']
 
-        self.data_source.load(self.active_params)
-        self.rows = self.data_source.rows
+        self.rows = self.data_source.load(self.active_params)
         self.total_recs = self.data_source.total_recs
         self.emit('data-loaded', self.total_recs)
 
@@ -1332,11 +1331,12 @@ class DataGridModel(GenericTreeModel):
         # for all the new rows?
         path = (len(self.rows) - 1,)
         itr = self.get_iter(path)
-        self.data_source.load(self.active_params)
-        if not self.data_source.rows:
+
+        rows = self.data_source.load(self.active_params)
+        if not len(rows):
             return False
 
-        for row in self.data_source.rows:
+        for row in rows:
             self.rows.append(row)
             self.row_inserted(path, itr)
         return True
