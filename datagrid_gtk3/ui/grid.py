@@ -776,6 +776,8 @@ class DataGridView(Gtk.TreeView):
         super(DataGridView, self).__init__(**kwargs)
 
         self.connect_after('notify::model', self.after_notify_model)
+        self.connect('row-expanded', self.on_row_expanded)
+        self.connect('row-collapsed', self.on_row_collapsed)
 
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
@@ -786,6 +788,7 @@ class DataGridView(Gtk.TreeView):
         self.set_rules_hint(True)
         self.active_sort_column = None
         self.active_sort_column_order = None
+        self._expanded_ids = set()
 
     ###
     # Public
@@ -801,6 +804,13 @@ class DataGridView(Gtk.TreeView):
             self.remove_column(col)
 
         self._setup_columns()
+
+        if self._expanded_ids:
+            def _maybe_expand_row(model, path, iter_):
+                row_id = model.get_value(iter_, model.id_column_idx)
+                if row_id in self._expanded_ids:
+                    self.expand_row(path, False)
+            self.model.foreach(_maybe_expand_row)
 
     ###
     # Callbacks
@@ -820,6 +830,36 @@ class DataGridView(Gtk.TreeView):
             return
 
         model.connect('row-changed', self.on_model_row_changed)
+
+    def on_row_expanded(self, treeview, iter_, path):
+        """Handle row-expanded events.
+
+        Keep track of which rows are currently expanded
+
+        :param treeview: the treeview that had one of its rows expanded
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the expanded row
+        :type iter_: class:`Gtk.TreeIter`
+        :param path: the path pointing to the expanded row
+        :type path: :class:`Gtk.TreePath`
+        """
+        self._expanded_ids.add(
+            self.model.get_value(iter_, self.model.id_column_idx))
+
+    def on_row_collapsed(self, treeview, iter_, path):
+        """Handle row-collapsed events.
+
+        Keep track of which rows are currently expanded
+
+        :param treeview: the treeview that had one of its rows collapsed
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the collapsed row
+        :type iter_: class:`Gtk.TreeIter`
+        :param path: the path pointing to the collapsed row
+        :type path: :class:`Gtk.TreePath`
+        """
+        self._expanded_ids.discard(
+            self.model.get_value(iter_, self.model.id_column_idx))
 
     def on_model_row_changed(self, model, path, iter_):
         """Track row changes on model.
