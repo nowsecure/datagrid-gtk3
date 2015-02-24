@@ -1579,16 +1579,13 @@ class DataGridModel(GenericTreeModel):
         :returns: the humanized bytes
         :rtype: str
         """
-        if value == 1:
-            return '1 byte'
-
         for suffix, factor in [
                 ('PB', 1 << 50),
                 ('TB', 1 << 40),
                 ('GB', 1 << 30),
                 ('MB', 1 << 20),
                 ('kB', 1 << 10),
-                ('bytes', 1)]:
+                ('B', 1)]:
             if value >= factor:
                 value = '%.*f %s' % (1, float(value) / factor, suffix)
                 break

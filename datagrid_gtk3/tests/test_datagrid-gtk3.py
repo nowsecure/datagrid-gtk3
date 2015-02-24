@@ -231,10 +231,10 @@ class DataGridModelTest(unittest.TestCase):
         """Test bytes humanization."""
         self.assertEqual(
             self.datagrid_model._bytes_transform(1),
-            '1 byte')
+            '1 B')
         self.assertEqual(
             self.datagrid_model._bytes_transform(50),
-            '50.0 bytes')
+            '50.0 B')
         self.assertEqual(
             self.datagrid_model._bytes_transform(2348),
             '2.3 kB')
