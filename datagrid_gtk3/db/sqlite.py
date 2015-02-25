@@ -424,6 +424,7 @@ class SQLiteDataSource(DataSource):
         cols = []
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
+                self._ensure_temp_view(cursor)
                 table_info_query = 'PRAGMA table_info(%s)' % self.table
                 cursor.execute(table_info_query)
                 rows = cursor.fetchall()
@@ -434,8 +435,6 @@ class SQLiteDataSource(DataSource):
                     col_name = row[1]
                     if self.config is not None:
                         if col_name not in [self.ID_COLUMN, '__selected']:
-                            # display_name, (data_type, transform) = \
-                            #     self.config[counter]
                             display_name = self.config[counter]['alias'] if (
                                 'alias' in self.config[counter]) else (
                                 self.config[counter]['column'])
@@ -449,7 +448,8 @@ class SQLiteDataSource(DataSource):
                             counter += 1
                     if not col_defined:
                         display_name = row[1]
-                        data_type = self.SQLITE_PY_TYPES.get(row[2].upper(), str)
+                        data_type = self.SQLITE_PY_TYPES.get(
+                            row[2].upper(), str)
                         transform = None  # TODO: eg. buffer
                     col_dict = {
                         'name': col_name,
@@ -463,7 +463,7 @@ class SQLiteDataSource(DataSource):
                         has_selected = True
                     else:
                         cols.append(col_dict)
-                if not has_selected:
+                if self._ensure_selected_column and not has_selected:
                     alter_sql = 'ALTER TABLE %s ADD __selected INTEGER' % (
                         self.update_table)
                     cursor.execute(alter_sql)
