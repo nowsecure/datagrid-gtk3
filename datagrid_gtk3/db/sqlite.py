@@ -449,8 +449,7 @@ class SQLiteDataSource(DataSource):
                             counter += 1
                     if not col_defined:
                         display_name = row[1]
-                        data_type = self.SQLITE_PY_TYPES.get(
-                            row[2].upper(), str)
+                        data_type = self.SQLITE_PY_TYPES.get(row[2].upper(), str)
                         transform = None  # TODO: eg. buffer
                     col_dict = {
                         'name': col_name,
