@@ -286,7 +286,7 @@ class SQLiteDataSource(DataSource):
             conn.row_factory = sqlite3.Row  # Access columns by name
             with closing(conn.cursor()) as cursor:
                 self._ensure_temp_view(cursor)
-                cursor.execute(sql_statement, (str(record_id),))
+                cursor.execute(sql_statement, (record_id, ))
                 data = cursor.fetchone()
             # TODO log error if more than one
         return data
