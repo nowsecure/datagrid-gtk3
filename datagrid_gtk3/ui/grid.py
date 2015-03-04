@@ -866,16 +866,34 @@ class DataGridView(Gtk.TreeView):
         expanded_ids = self._expanded_ids.copy()
         self._expanded_ids.clear()
 
-        def _find_exapandable_rows(model, path, iter_):
-            row_id = model.get_value(iter_, model.id_column_idx)
-            if model.iter_has_child(iter_):
-                self._expandable_ids.add(row_id)
-            # If the row was expanded before, expand it again
-            if row_id in expanded_ids:
-                self.expand_row(path, False)
-
         self._block_all_expanded = True
-        self.model.foreach(_find_exapandable_rows)
+        # FIXME: This is very optimized, but on some situations (e.g. all paths
+        # are expanded and the user changed the sort column), this would make
+        # everything be loaded at the same time. Is there anything we can do
+        # regarding this issue?
+        for row_id in expanded_ids:
+            row = self.model.get_row_by_id(row_id, load_rows=True)
+            if row is None:
+                continue
+            self.expand_to_path(Gtk.TreePath(row.path))
+        self._block_all_expanded = False
+        self._check_all_expanded()
+
+    def expand_all(self):
+        """Expand all expandable rows on the view."""
+        # A little optimization to avoid calling _check_all_expanded
+        # for all rows that will be expanded
+        self._block_all_expanded = True
+        super(DataGridView, self).expand_all()
+        self._block_all_expanded = False
+        self._check_all_expanded()
+
+    def collapse_all(self):
+        """Collapse all expandable rows on the view."""
+        # A little optimization to avoid calling _check_all_expanded
+        # for all rows that will be collapsed
+        self._block_all_expanded = True
+        super(DataGridView, self).collapse_all()
         self._block_all_expanded = False
         self._check_all_expanded()
 
@@ -910,8 +928,8 @@ class DataGridView(Gtk.TreeView):
         :param path: the path pointing to the expanded row
         :type path: :class:`Gtk.TreePath`
         """
-        self._expanded_ids.add(
-            self.model.get_value(iter_, self.model.id_column_idx))
+        row_id = self.model.get_value(iter_, self.model.id_column_idx)
+        self._expanded_ids.add(row_id)
         self._check_all_expanded()
 
     def on_row_collapsed(self, treeview, iter_, path):
@@ -1003,13 +1021,29 @@ class DataGridView(Gtk.TreeView):
     # Private
     ###
 
+    def _get_expandable_ids(self):
+        """Get the ids of the expandable rows."""
+        if not self._expandable_ids:
+            if not self.model.rows.is_children_loaded(recursive=True):
+                # If there's still anything to load, for sure all
+                # are not expanded. Return None to avoid confusing it with
+                # an empty set
+                return None
+
+            for row in self.model.iter_rows():
+                if len(row):
+                    row_id = row.data[self.model.id_column_idx]
+                    self._expandable_ids.add(row_id)
+
+        return self._expandable_ids
+
     def _check_all_expanded(self):
         """Check expanded rows and maybe emit all-expanded event"""
         if self._block_all_expanded:
             return
 
         old_all_expanded = self._all_expanded
-        self._all_expanded = self._expandable_ids == self._expanded_ids
+        self._all_expanded = self._expanded_ids == self._get_expandable_ids()
         if self._all_expanded != old_all_expanded:
             self.emit('all-expanded', self._all_expanded)
 
@@ -1045,7 +1079,8 @@ class DataGridView(Gtk.TreeView):
             self.model.data_source.PARENT_ID_COLUMN,
             '__selected'])
 
-        samples = itertools.islice(self.model.iter_rows(), self.SAMPLE_SIZE)
+        samples = itertools.islice(
+            (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE)
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
             display = (self.model.display_columns is None
@@ -1451,6 +1486,7 @@ class DataGridModel(GenericTreeModel):
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
 
+        self.row_id_mapper = {}
         self.id_column_idx = None
         self.parent_column_idx = None
         self.rows = None
@@ -1460,33 +1496,55 @@ class DataGridModel(GenericTreeModel):
         """Refresh the model from the data source."""
         if 'page' in self.active_params:
             del self.active_params['page']
+        if 'parent_id' in self.active_params:
+            del self.active_params['parent_id']
 
+        self.row_id_mapper.clear()
         self.rows = self.data_source.load(self.active_params)
+        self.rows.path = ()
+
         self.id_column_idx = self.data_source.id_column_idx
         self.parent_column_idx = self.data_source.parent_column_idx
         self.total_recs = self.data_source.total_recs
+
+        for i, row in enumerate(self.rows):
+            row.path = (i, )
+            self.row_id_mapper[row.data[self.id_column_idx]] = row
+
         self.emit('data-loaded', self.total_recs)
 
-    def add_rows(self):
+    def add_rows(self, parent_node=None):
         """Add rows to the model from a new page of data and update the view.
 
         :return: True if update took place, False if not
         :rtype: bool
         """
-        self.active_params['page'] = self.active_params.get('page', 0) + 1
+        # When the data is hierarchical, all the root data was already loaded
+        if parent_node is None and self.parent_column_idx is not None:
+            return False
 
-        # FIXME: Is it right to call row_inserted with the same path/itr
-        # for all the new rows?
-        path = (len(self.rows) - 1,)
-        itr = self.get_iter(path)
+        if parent_node is not None:
+            parent_id = parent_node.data[self.id_column_idx]
+            parent_row = parent_node
+        else:
+            parent_id = None
+            parent_row = self.rows
+
+        self.active_params['parent_id'] = parent_id
+        # We are not using pages for hierarchical data
+        if self.parent_column_idx is None:
+            self.active_params['page'] = self.active_params.get('page', 0) + 1
 
         rows = self.data_source.load(self.active_params)
         if not len(rows):
             return False
 
-        for row in rows:
-            self.rows.append(row)
-            self.row_inserted(path, itr)
+        for i, row in enumerate(rows):
+            # FIXME: How to properly call self.row_inserted here?
+            parent_row.append(row)
+            row.path = parent_row.path + (i, )
+            self.row_id_mapper[row.data[self.id_column_idx]] = row
+
         return True
 
     def update_data_source(self, column, value, ids):
@@ -1591,7 +1649,7 @@ class DataGridModel(GenericTreeModel):
         """
         path = self.get_path(itr)
         # path and iter are the same in this model.
-        row = self._get_row_by_iter(path)
+        row = self._get_row_by_path(path)
         row.data[column] = value
         id_ = self.get_value(itr, self.id_column_idx)
         self.update_data_source(
@@ -1599,7 +1657,7 @@ class DataGridModel(GenericTreeModel):
         if emit_event:
             self.row_changed(path, itr)
 
-    def iter_rows(self):
+    def iter_rows(self, load_rows=False):
         """Iterate over the rows of the model.
 
         This will iterate using a depth-first algorithm. That means that,
@@ -1618,24 +1676,67 @@ class DataGridModel(GenericTreeModel):
 
             [ A, B, E, C, F, G, H, D ]
 
+        :param bool load_rows: if we should load rows from the
+            datasource during the iteration. When using this, be sure
+            to use lazy iteration and stop when you found what you needed.
+        :returns: an iterator for the rows
+        :rtype: generator
         """
         def _iter_children_aux(parent):
             for row in parent:
+                if load_rows:
+                    self._ensure_children_is_loaded(row)
                 yield row
                 for inner_row in _iter_children_aux(row):
                     yield inner_row
 
         for row in _iter_children_aux(self.rows):
-            yield row.data
+            yield row
+
+        if load_rows:
+            rows_len = len(self.rows)
+            while self.add_rows():
+                for row in _iter_children_aux(self.rows[rows_len:]):
+                    yield row
+                rows_len = len(self.rows)
+
+    def get_row_by_id(self, row_id, load_rows=False):
+        """Get a row given its id
+
+        Note that this will load the data from the source until the
+        row is found, meaning that everything will be loaded on the
+        worst case (i.e. the row is not present)
+
+        :param object row_id: the id of the row
+        :returns: the row or ``None`` if it wasn't found
+        :rtype: :class:`datagrid_gtk3.db.sqlite.Node`
+        """
+        if row_id in self.row_id_mapper:
+            return self.row_id_mapper[row_id]
+
+        for row in self.iter_rows(load_rows=load_rows):
+            # Although we could check row, trying self.row_id_mapper has a
+            # chance of needing less iterations (and thus, less loading from
+            # sqlite) since after loading all children of A, we can find them
+            # on self.row_id_mapper without having to load their children too
+            if row_id in self.row_id_mapper:
+                return self.row_id_mapper[row_id]
 
     ###
     # Private
     ###
 
-    def _get_row_by_iter(self, iter_):
+    def _ensure_children_is_loaded(self, row):
+        if not row.is_children_loaded():
+            self.add_rows(row)
+
+    def _get_row_by_path(self, iter_):
         def get_row_by_iter_aux(iter_aux, rows):
+            self._ensure_children_is_loaded(rows)
             if len(iter_aux) == 1:
-                return rows[iter_aux[0]]
+                row = rows[iter_aux[0]]
+                self._ensure_children_is_loaded(row)
+                return row
             return get_row_by_iter_aux(iter_aux[1:], rows[iter_aux[0]])
 
         return get_row_by_iter_aux(iter_, self.rows)
@@ -1832,7 +1933,7 @@ class DataGridModel(GenericTreeModel):
         try:
             # row and path are the same in this model. We just need
             # to make sure that the iter is valid
-            self._get_row_by_iter(path)
+            self._get_row_by_path(path)
         except IndexError:
             return None
         else:
@@ -1847,7 +1948,7 @@ class DataGridModel(GenericTreeModel):
         else:
             visible = True
 
-        row = self._get_row_by_iter(rowref)
+        row = self._get_row_by_path(rowref)
         raw = row.data[column]
         # Don't format value for id and parent columns. They are not displayed
         # on the grid and we may need their full values to get their records
@@ -1868,7 +1969,7 @@ class DataGridModel(GenericTreeModel):
             next_value = (rowref[0] + 1, )
         else:
             parentref = rowref[:-1]
-            rows = self._get_row_by_iter(parentref)
+            rows = self._get_row_by_path(parentref)
             next_value = parentref + (rowref[-1] + 1, )
 
         if not next_value[-1] < len(rows):
@@ -1881,7 +1982,7 @@ class DataGridModel(GenericTreeModel):
         if rowref is None:
             return (0, )
 
-        parent_row = self._get_row_by_iter(rowref)
+        parent_row = self._get_row_by_path(rowref)
         if not len(parent_row):
             return None
 
@@ -1889,14 +1990,14 @@ class DataGridModel(GenericTreeModel):
 
     def on_iter_has_child(self, rowref):
         """Return true if this node has children."""
-        return bool(self._get_row_by_iter(rowref))
+        return bool(self._get_row_by_path(rowref))
 
     def on_iter_n_children(self, rowref):
         """Return the number of children of this node."""
         if rowref is None:
             return len(self.rows)
 
-        return len(self._get_row_by_iter(rowref))
+        return len(self._get_row_by_path(rowref))
 
     def on_iter_nth_child(self, parent, n):
         """Return the nth child of this node."""
@@ -1904,7 +2005,7 @@ class DataGridModel(GenericTreeModel):
             parent = ()
             rows = self.rows
         else:
-            rows = self._get_row_by_iter(parent)
+            rows = self._get_row_by_path(parent)
 
         if not 0 <= n < len(rows):
             return None

@@ -26,11 +26,30 @@ class Node(list):
     from :obj:`.data`.
 
     :param object data: the data that will be stored in this node
+    :param int children_len: the number of the children that will
+        be loaded lazely at some point
     """
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, children_len=0):
         super(Node, self).__init__()
+
         self.data = data
+        self.children_len = children_len
+        self.path = None
+
+    def is_children_loaded(self, recursive=False):
+        """Check if this node's children is loaded
+
+        :param bool recursive: wheather to ask each child if their
+            children is loaded (and their child too and so on) too.
+        :returns: `True` if children is loaded, otherwise `False`
+        :rtype: bool
+        """
+        loaded = len(self) == self.children_len
+        if recursive:
+            loaded = (loaded and
+                      all(c.is_children_loaded(recursive=True) for c in self))
+        return loaded
 
 
 class SQLiteDataSource(DataSource):
@@ -164,36 +183,36 @@ class SQLiteDataSource(DataSource):
                                 return []
                                 last_page = True
                 if not last_page:
-                    # FIXME: How to properly do lazy loading in this case?
                     if self.PARENT_ID_COLUMN:
-                        def get_results(parent):
-                            operator = 'is' if parent is None else '='
-                            if where_sql:
-                                parent_where = '%s AND %s %s ?' % (
-                                    where_sql, operator, self.PARENT_ID_COLUMN)
-                            else:
-                                parent_where = ' WHERE %s %s ? ' % (
-                                    self.PARENT_ID_COLUMN, operator)
-                            sql = 'SELECT %s FROM %s %s %s' % (
-                                self.column_name_str, self.table,
-                                parent_where, order_sql)
+                        # FIXME: We should use sqlalchemy to construct the
+                        # queries in the whole module
+                        parent_id = params.get('parent_id')
+                        operator = 'is' if parent_id is None else '='
+                        if where_sql:
+                            parent_where = '%s AND %s %s ?' % (
+                                where_sql, operator, self.PARENT_ID_COLUMN)
+                        else:
+                            parent_where = ' WHERE %s %s ? ' % (
+                                self.PARENT_ID_COLUMN, operator)
 
-                            bindings_ = bindings + [parent]
-                            logger.debug('SQL: %s, %s', sql, bindings_)
-                            # FIXME: If would be better to do:
-                            #     for row in cursor.execute(sql, bindings_):
-                            #         yield row
-                            # But for that we would need different cursors
-                            cursor.execute(sql, bindings_)
-                            return cursor.fetchall()
+                        # Check if the row has any children
+                        count_sql = (
+                            '(SELECT COUNT(1) FROM %s AS __count '
+                            ' WHERE __count.%s = __real_table.%s)' % (
+                                self.table,
+                                self.PARENT_ID_COLUMN, self.ID_COLUMN))
 
-                        def build_tree(parent, parent_id):
-                            for row in get_results(parent_id):
-                                node = Node(data=row)
-                                parent.append(node)
-                                build_tree(node, row[self.id_column_idx])
+                        columns = ', '.join([self.column_name_str, count_sql])
+                        sql = 'SELECT %s FROM %s AS __real_table %s %s' % (
+                            columns, self.table, parent_where, order_sql)
 
-                        build_tree(rows, None)
+                        bindings_ = bindings + [parent_id]
+                        logger.debug('SQL: %s, %s', sql, bindings_)
+
+                        for row in cursor.execute(sql, bindings_):
+                            children_len = row.pop(-1)
+                            rows.append(
+                                Node(data=row, children_len=children_len))
                     else:
                         sql = 'SELECT %s FROM %s %s %s LIMIT %d OFFSET %d' % (
                             self.column_name_str, self.table, where_sql,
@@ -210,6 +229,7 @@ class SQLiteDataSource(DataSource):
                     cursor.execute(sql, bindings)
                     self.total_recs = int(cursor.fetchone()[0])
 
+                rows.children_len = len(rows)
                 return rows
 
     def update(self, params, ids=None):
