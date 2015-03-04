@@ -190,7 +190,7 @@ class SQLiteDataSource(DataSource):
                         operator = 'is' if parent_id is None else '='
                         if where_sql:
                             parent_where = '%s AND %s %s ?' % (
-                                where_sql, operator, self.PARENT_ID_COLUMN)
+                                where_sql, self.PARENT_ID_COLUMN, operator)
                         else:
                             parent_where = ' WHERE %s %s ? ' % (
                                 self.PARENT_ID_COLUMN, operator)
