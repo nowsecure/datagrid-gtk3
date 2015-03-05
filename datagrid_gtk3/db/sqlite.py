@@ -1,5 +1,7 @@
 """SQLite database backend."""
+
 import logging
+import operator
 import sqlite3
 import struct
 from contextlib import closing
@@ -12,10 +14,32 @@ from sqlalchemy import (
     inspect,
 )
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.sql import (
+    alias,
+    and_,
+    column,
+    desc,
+    func,
+    select,
+    table as table_,
+)
 
 from datagrid_gtk3.db import DataSource
 
 logger = logging.getLogger(__name__)
+_compile = lambda q: q.compile(compile_kwargs={"literal_binds": True}).string
+
+_OPERATOR_MAPPER = {
+    'is': operator.eq,
+    '=': operator.eq,
+    '!=': operator.ne,
+    '<': operator.lt,
+    '<=': operator.le,
+    '<': operator.lt,
+    '<=': operator.le,
+    '>': operator.gt,
+    '>=': operator.ge,
+}
 
 
 class Node(list):
@@ -98,12 +122,13 @@ class SQLiteDataSource(DataSource):
         """Process database column info."""
         assert table or query  # either table or query must be given
         self.db_file = db_file
-        self.table = table if table else "__CustomQueryTempView"
+        self.table = table_(table if table else "__CustomQueryTempView")
         self.query = query
         if query:
             logger.debug("Custom SQL: %s", query)
         self._ensure_selected_column = ensure_selected_column
         self.display_all = display_all
+        # FIXME: Use sqlalchemy for queries using update_table
         if update_table is not None:
             self.update_table = update_table
         else:
@@ -111,10 +136,14 @@ class SQLiteDataSource(DataSource):
         self.config = config
         self.id_column_idx = None
         self.parent_column_idx = None
-        self.columns = self.get_columns()
-        column_names = ['"%s"' % col['name'] for col in self.columns]
-        self.column_name_str = ', '.join(column_names)
+        self.columns = self._get_columns()
+        for col in self.columns:
+            self.table.append_column(column(col['name']))
         self.total_recs = None
+
+    ###
+    # Public
+    ###
 
     def load(self, params=None):
         """Execute SQL ``SELECT`` and populate ``rows`` attribute.
@@ -141,9 +170,33 @@ class SQLiteDataSource(DataSource):
         :param dict params: dict of various parameters from which to construct
             additional SQL clauses eg. ``WHERE``, ``ORDER BY``, etc.
         """
-        first_access = True
-        last_page = False
-        offset = 0
+        rows = Node()
+        # FIXME: Maybe we should use kwargs instead of params?
+        params = params or {}
+
+        # WHERE
+        where = params.get('where', None)
+        if where is not None:
+            where = self._get_where_clause(where)
+
+        # ORDER BY
+        order_by = params.get('order_by', None)
+        order_by = order_by and self.table.columns[order_by]
+        if order_by is not None and params.get('desc', False):
+            order_by = desc(order_by)
+
+        # OFFSET
+        page = params.get('page', 0)
+        # FIXME: If we have a PARENT_ID_COLUMN, all results
+        # were loaded on first load. How to handle this better?
+        if page > 0 and self.PARENT_ID_COLUMN is not None:
+            return rows
+        offset = page * self.MAX_RECS
+        # A little optimization to avoid doing more queries when we
+        # already loaded everything
+        if self.total_recs is not None and offset >= self.total_recs:
+            return rows
+
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = lambda cursor, row: list(row)
             # ^^ make result lists mutable so we can change values in
@@ -152,60 +205,27 @@ class SQLiteDataSource(DataSource):
             # TODO: ^^ only if search term in params
             with closing(conn.cursor()) as cursor:
                 self._ensure_temp_view(cursor)
-                bindings = []
-                where_sql = ''
-                order_sql = ''
-                rows = Node()
-                if params:
-                    # construct WHERE clause
-                    if 'where' in params:
-                        where_sql, bindings = self._get_where_clause(
-                            self.table, params['where'])
-                    # construct ORDER BY clause
-                    if 'order_by' in params:
-                        order_sql = order_sql + ' ORDER BY "%s"' % \
-                            params['order_by']
-                        if 'desc' in params:
-                            if params['desc'] is True:
-                                order_sql = order_sql + ' DESC'
-                    # determine OFFSET value for paging
-                    if 'page' in params:
-                        # FIXME: If we have a PARENT_ID_COLUMN, all results
-                        # were loaded on first load. How to handle this better?
-                        if self.PARENT_ID_COLUMN:
-                            return []
-                        first_access = False
-                        if params['page']:
-                            offset = params['page'] * self.MAX_RECS
-                            if offset >= self.total_recs:
-                                # at end of total records, return no records
-                                #   for paging
-                                return []
-                                last_page = True
-                if not last_page:
-                    if self.PARENT_ID_COLUMN:
-                        rows.extend(
-                            self._load_tree_rows(
-                                cursor, where_sql, bindings, order_sql,
-                                params.get('parent_id')))
-                    else:
-                        sql = 'SELECT %s FROM %s %s %s LIMIT %d OFFSET %d' % (
-                            self.column_name_str, self.table, where_sql,
-                            order_sql, self.MAX_RECS, offset)
-                        logger.debug('SQL: %s, %s', sql, bindings)
-                        for row in cursor.execute(sql, bindings):
-                            rows.append(Node(data=row))
 
-                if first_access:
-                    # set the total record count the only the first time the
-                    # record set is requested
-                    sql = 'SELECT COUNT(*) FROM %s %s' % (
-                        self.table, where_sql)
-                    cursor.execute(sql, bindings)
-                    self.total_recs = int(cursor.fetchone()[0])
+            if page == 0:
+                # set the total record count the only the first time the
+                # record set is requested
+                res = self.select(
+                    conn, self.table, [func.count(1)], where=where)
+                self.total_recs = int(list(res)[0][0])
 
-                rows.children_len = len(rows)
-                return rows
+            if self.PARENT_ID_COLUMN:
+                rows.extend(
+                    self._load_tree_rows(
+                        conn, where, order_by, params.get('parent_id', None)))
+            else:
+                query = self.select(
+                    conn, self.table, self.table.columns, where=where,
+                    limit=self.MAX_RECS, offset=offset, order_by=order_by)
+                for row in query:
+                    rows.append(Node(data=row))
+
+        rows.children_len = len(rows)
+        return rows
 
     def update(self, params, ids=None):
         """Update the recordset with a SQL ``UPDATE`` statement.
@@ -218,6 +238,7 @@ class SQLiteDataSource(DataSource):
         :param dict params: keys corresponding to DB columns + values to update
         :param list ids: database primary keys to use for updating
         """
+        # FIXME: Use sqlalchemy to construct the queries here
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
                 update_sql_list = []
@@ -246,45 +267,33 @@ class SQLiteDataSource(DataSource):
         :return: primary key ids
         :rtype: list
         """
-        bindings = []
-        where_sql = ''
-        # construct WHERE clause
-        if params is not None:
-            if 'where' in params:
-                where_sql, bindings = self._get_where_clause(
-                    self.table, params['where'])
-        sql = 'SELECT %s FROM %s %s' % (self.ID_COLUMN, self.table, where_sql)
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.create_function('rank', 1, rank)
             # TODO: ^^ create this function only if search term in params
-            with closing(conn.cursor()) as cursor:
-                self._ensure_temp_view(cursor)
-                cursor.execute(sql, bindings)
-                results = [row[0] for row in cursor.fetchall()]
-        return results
+            where = params and params.get('where', None)
+            if where is not None:
+                where = self._get_where_clause(where)
+            res = self.select(
+                conn, self.table,
+                [self.table.columns[self.ID_COLUMN]], where=where)
 
-    def get_single_record(self, record_id, table=None):
+            return [row[0] for row in res]
+
+    def get_single_record(self, record_id):
         """Get single record from database for display in preview pane.
 
         :param int record_id: required record number to be retrieved
-        :param str table: optional string table name to retrieve from if not
-            class default table
         :return: row of data
         :rtype: tuple
         """
-        if table is None:
-            table = self.table
-        sql_statement = 'SELECT * FROM %s WHERE %s = ?' % (
-            table, self.ID_COLUMN
-        )
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = sqlite3.Row  # Access columns by name
-            with closing(conn.cursor()) as cursor:
-                self._ensure_temp_view(cursor)
-                cursor.execute(sql_statement, (record_id, ))
-                data = cursor.fetchone()
+            res = list(self.select(
+                conn, self.table, self.table.columns,
+                where=self.table.columns[self.ID_COLUMN] == record_id))
+
             # TODO log error if more than one
-        return data
+            return res[0]
 
     def get_selected_columns(self):
         """Get selected columns info from DB.
@@ -292,14 +301,18 @@ class SQLiteDataSource(DataSource):
         :returns: list of column names
         :rtype: list or None
         """
-        result = self.select(
-            self.db_file,
-            '_selected_columns',
-            None,
-            {'tablename': {'param': self.table, 'operator': '='}}
-        )
-        if not result:
-            return None
+        table = '_selected_columns'
+        where = self._get_where_clause(
+            {'tablename': {'param': self.table, 'operator': '='}})
+
+        with closing(sqlite3.connect(self.db_file)) as conn:
+            conn.row_factory = sqlite3.Row  # Access columns by name
+            try:
+                result = list(self.select(conn, table, where=where))
+            except sqlite3.OperationalError as err:
+                # FIXME: When will this happen?
+                logger.warn(str(err))
+                return
 
         return result[0][1].split(',')
         # ^^ 2nd column of returned row; first column is table name
@@ -312,6 +325,7 @@ class SQLiteDataSource(DataSource):
 
         :param list columns: list of column names to display
         """
+        # FIXME: Use sqlalchemy to construct the queries here
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
                 create_sql = (
@@ -345,8 +359,8 @@ class SQLiteDataSource(DataSource):
                 cursor.execute(update_sql, params)
                 conn.commit()
 
-    @classmethod
-    def select(cls, db_file, table, columns=None, where=None):
+    def select(self, conn, table, columns, where=None,
+               order_by=None, limit=None, offset=None):
         """Select records from given db and table given columns and criteria.
 
         :param str db_file: path to SQLite database file
@@ -354,32 +368,28 @@ class SQLiteDataSource(DataSource):
         :param list columns: list of columns to SELECT from
         :param dict where: dict of parameters to build ``WHERE`` clause
         """
-        # TODO: make this an instance method to avoid having to pass db_file?
-        where_sql = ''
-        where_params = []
-        if columns:
-            columns = ', '.join(columns)
-        else:
-            columns = '*'
-        if where is not None:
-            where_sql, where_params = \
-                cls._get_where_clause(table, where)
-        sql = 'SELECT %s FROM %s %s' % (columns, table, where_sql)
-        logger.debug(sql)
-        with closing(sqlite3.connect(db_file)) as conn:
-            conn.row_factory = sqlite3.Row  # Access columns by name
-            with closing(conn.cursor()) as cursor:
-                try:
-                    cursor.execute(sql, where_params)
-                except sqlite3.OperationalError as err:
-                    logger.warn(str(err))
-                    data = []
-                else:
-                    data = cursor.fetchall()
-        return data
+        sql = select(
+            columns=columns, whereclause=where,
+            from_obj=[table], order_by=order_by)
+        sql_str = _compile(sql)
 
-    @classmethod
-    def _get_where_clause(cls, table, where_params):
+        # XXX: How to make sqlalchemy use limit/offset right? It is not
+        # replacing the values on _compile
+        if limit is not None:
+            sql_str += '\nLIMIT %s' % (limit, )
+        if offset is not None:
+            sql_str += '\nOFFSET %s' % (offset, )
+
+        logger.debug('SQL:\n%s', sql_str)
+        with closing(conn.cursor()) as cursor:
+            for row in cursor.execute(sql_str):
+                yield row
+
+    ###
+    # Private
+    ###
+
+    def _get_where_clause(self, where_params):
         """Construct a SQL ``WHERE`` clause.
 
         A typical ``where_params`` dict might look like this::
@@ -393,43 +403,38 @@ class SQLiteDataSource(DataSource):
         :rtype: tuple
         """
         sql_clauses = []
-        params = []
         for key, value in where_params.iteritems():
             dic = value
             if key == 'search':
                 # full-text search
                 # TODO: make this generic, not specific to vE implementation
                 if dic['param']:
+                    table = self.table.name + '_search'
+                    # XXX: This is to make MATCH be compiled direct here.
+                    # We should build this query using sqlalchemy instead
+                    match = column(table).match(value['param'])
+
                     sql = '(%s IN (%s)' % (
-                        cls.ID_COLUMN,
+                        self.ID_COLUMN,
                         'SELECT %(id)s FROM '
                         '(SELECT rank(matchinfo(%(table)s)) AS r, %(id)s'
-                        ' FROM  %(table)s WHERE %(table)s MATCH ?)'
+                        ' FROM  %(table)s WHERE %(match)s)'
                         ' WHERE r > 0 ORDER BY r DESC)' % {
-                            "id": cls.ID_COLUMN,
-                            "table": table + '_search'
+                            "id": self.ID_COLUMN,
+                            "table": table,
+                            "match": _compile(match),
                         }
                     )
                     sql_clauses.append(sql)
-                    params.append(dic['param'])
             elif dic['operator'] == 'range':
-                sql = '(%(col)s >= ? AND %(col)s <= ?)' % {'col': key}
-                sql_clauses.append(sql)
-                params.append(dic['param'][0])
-                params.append(dic['param'][1])
+                sql_clauses.append(
+                    self.table.columns[key].between(*value['param']))
             else:
-                sql = '(%s %s ?)' % (key, dic['operator'])
-                sql_clauses.append(sql)
-                params.append(dic['param'])
+                clause = _OPERATOR_MAPPER[value['operator']](
+                    self.table.columns[key], value['param'])
+                sql_clauses.append(clause)
 
-        if not sql_clauses:
-            return ('', [])
-
-        if len(sql_clauses) > 1:
-            sql = 'WHERE %s' % (' AND '.join(sql_clauses))
-        else:
-            sql = 'WHERE %s' % sql_clauses[0]
-        return (sql, params)
+        return and_(*sql_clauses)
 
     def _ensure_temp_view(self, cursor):
         """If a custom query is defined, temporary view using that query
@@ -444,7 +449,7 @@ class SQLiteDataSource(DataSource):
                 self.table, self.query
             ))
 
-    def get_columns(self):
+    def _get_columns(self):
         """Return a list of column information dicts.
 
         Queries either the database ``PRAGMA`` for column information or
@@ -466,7 +471,7 @@ class SQLiteDataSource(DataSource):
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
                 self._ensure_temp_view(cursor)
-                table_info_query = 'PRAGMA table_info(%s)' % self.table
+                table_info_query = 'PRAGMA table_info(%s)' % self.table.name
                 cursor.execute(table_info_query)
                 rows = cursor.fetchall()
                 has_selected = False
@@ -525,20 +530,9 @@ class SQLiteDataSource(DataSource):
 
         return cols
 
-    def _load_tree_rows(self, cursor, where_sql, bindings, order_sql, parent_id):
+    def _load_tree_rows(self, conn, where, order_by, parent_id):
         """Load rows as a tree."""
-        # FIXME: We should use sqlalchemy to construct the queries here,
-        # but for that _get_where_clause needs to be adapted.
-        def get_rows(columns, where, bindings_):
-            sql = 'SELECT %s FROM %s AS __real_table %s %s' % (
-                columns, self.table, where, order_sql)
-
-            logger.debug('SQL: %s, %s', sql, bindings_)
-
-            for row in cursor.execute(sql, bindings_):
-                yield row
-
-        if where_sql:
+        if where is not None:
             # FIXME: If we have a where clause, we cant load the results lazily
             # because, we don't know if a row's children/grandchildren/etc will
             # match.  If this optimization (loading the leafs and the necessary
@@ -546,9 +540,11 @@ class SQLiteDataSource(DataSource):
             children = {}
             node_mapper = {}
 
-            def load_rows(where, bindings_):
-                columns = self.column_name_str
-                for row in get_rows(columns, where, bindings_):
+            def load_rows(where_):
+                query = self.select(
+                    conn, self.table, columns=self.table.columns,
+                    where=where_, order_by=order_by)
+                for row in query:
                     row_id = row[self.id_column_idx]
                     if row_id in node_mapper:
                         continue
@@ -559,7 +555,7 @@ class SQLiteDataSource(DataSource):
                     c_list.append(node)
                     node_mapper[row_id] = node
 
-            load_rows(where_sql, bindings)
+            load_rows(where)
             if not children:
                 return
 
@@ -580,28 +576,36 @@ class SQLiteDataSource(DataSource):
                     del children[parent]
 
                 if parents_to_load:
-                    # FIXME: Shouldn't cursor.execute handle this?
-                    marker = ','.join('?' for p in parents_to_load)
-                    where = 'WHERE %s IN (%s)' % (self.ID_COLUMN, marker)
-                    load_rows(where, parents_to_load)
+                    where = self.table.columns[self.ID_COLUMN].in_(
+                        parents_to_load)
+                    load_rows(where)
 
             for node in children[None]:
                 yield node
         else:
             # If there's no where clause, we can load the results lazily
-            operator = 'is' if parent_id is None else '='
-            parent_where = ' WHERE %s %s ? ' % (
-                self.PARENT_ID_COLUMN, operator)
+            where = self.table.columns[self.PARENT_ID_COLUMN] == parent_id
 
-            # Check if the row has any children
-            count_sql = (
-                '(SELECT COUNT(1) FROM %s AS __count '
-                ' WHERE __count.%s = __real_table.%s)' % (
-                    self.table, self.PARENT_ID_COLUMN, self.ID_COLUMN))
-            columns = ', '.join([self.column_name_str, count_sql])
+            count_table = alias(self.table, '__count')
+            # We could use the comparison between the columns, but that would
+            # make sqlalchemy add self.table in the FROM clause, which
+            # would produce wrong results.
+            count_where = '%s.%s = %s.%s' % (
+                count_table.name, self.PARENT_ID_COLUMN,
+                self.table.name, self.ID_COLUMN)
+            count_select = select(
+                [func.count(1)],
+                whereclause=count_where, from_obj=[count_table])
 
-            bindings_ = bindings + [parent_id]
-            for row in get_rows(columns, parent_where, bindings_):
+            columns = self.table.columns.values()
+            # We have to compile this here or else sqlalchemy would put
+            # this inside the FROM part.
+            columns.append('(%s)' % (_compile(count_select), ))
+            query = self.select(
+                conn, self.table, columns=columns,
+                where=where, order_by=order_by)
+
+            for row in query:
                 children_len = row.pop(-1)
                 yield Node(data=row, children_len=children_len)
 

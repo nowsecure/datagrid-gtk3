@@ -1579,6 +1579,7 @@ class DataGridModel(GenericTreeModel):
         if 'parent_id' in self.active_params:
             del self.active_params['parent_id']
 
+        self.data_source.total_recs = None
         self.row_id_mapper.clear()
         self.rows = self.data_source.load(self.active_params)
         self.rows.path = ()
@@ -1603,27 +1604,33 @@ class DataGridModel(GenericTreeModel):
         if parent_node is None and self.parent_column_idx is not None:
             return False
 
-        if parent_node is not None:
-            parent_id = parent_node.data[self.id_column_idx]
-            parent_row = parent_node
-        else:
+        if parent_node is None:
             parent_id = None
             parent_row = self.rows
+            path_offset = self.rows[-1].path[-1] + 1
+            # We are not using pages for hierarchical data
+            self.active_params['page'] = self.active_params.get('page', 0) + 1
+        else:
+            parent_id = parent_node.data[self.id_column_idx]
+            parent_row = parent_node
+            path_offset = 0
 
         self.active_params['parent_id'] = parent_id
-        # We are not using pages for hierarchical data
-        if self.parent_column_idx is None:
-            self.active_params['page'] = self.active_params.get('page', 0) + 1
-
         rows = self.data_source.load(self.active_params)
         if not len(rows):
             return False
 
         for i, row in enumerate(rows):
-            # FIXME: How to properly call self.row_inserted here?
-            parent_row.append(row)
-            row.path = parent_row.path + (i, )
+            row.path = parent_row.path + (path_offset + i, )
             self.row_id_mapper[row.data[self.id_column_idx]] = row
+            parent_row.append(row)
+
+            # FIXME: Non-hierarchical data need this to display the new row,
+            # but hierarchical ones not only will work without this, but will
+            # produce warnings if we try to call this for them.
+            if self.parent_column_idx is None:
+                path = Gtk.TreePath(row.path)
+                self.row_inserted(path, self.get_iter(path))
 
         return True
 
@@ -1812,7 +1819,6 @@ class DataGridModel(GenericTreeModel):
 
     def _get_row_by_path(self, iter_):
         def get_row_by_iter_aux(iter_aux, rows):
-            self._ensure_children_is_loaded(rows)
             if len(iter_aux) == 1:
                 row = rows[iter_aux[0]]
                 self._ensure_children_is_loaded(row)
