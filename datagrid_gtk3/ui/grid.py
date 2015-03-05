@@ -1296,7 +1296,7 @@ class DataGridModel(GenericTreeModel):
         self.datetime_columns = []
         self.column_types = []
         for column in self.columns:
-            if column['transform'] == 'datetime':
+            if column['transform'] == 'timestamp':
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
         self.display_columns = None
@@ -1405,7 +1405,7 @@ class DataGridModel(GenericTreeModel):
         elif col_dict['transform'] == 'image':
             value = self._image_transform(value, visible=visible)
 
-        elif col_dict['transform'] == 'datetime':
+        elif col_dict['transform'] == 'timestamp':
             if value:
                 value = self._datetime_transform(value)
             else:
