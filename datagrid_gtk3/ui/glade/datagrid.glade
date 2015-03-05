@@ -81,7 +81,18 @@
                   </packing>
                 </child>
                 <child>
-                  <placeholder/>
+                  <object class="GtkBox" id="extra_filters">
+                    <property name="can_focus">False</property>
+                    <property name="spacing">5</property>
+                    <child>
+                      <placeholder/>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">4</property>
+                  </packing>
                 </child>
                 <child>
                   <object class="GtkLabel" id="date_column_label">
@@ -184,7 +195,7 @@
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkSeparator" id="vseparator2">
+                  <object class="GtkSeparator" id="filters_separator">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="orientation">vertical</property>

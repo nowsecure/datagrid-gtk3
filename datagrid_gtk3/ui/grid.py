@@ -40,6 +40,10 @@ _no_image_loader.close()
 # repeat the lastest value read in a row for that column
 NO_IMAGE_PIXBUF = _no_image_loader.get_pixbuf()
 
+# Used to represent "no option selected" on filters. We use this instead of
+# None as it can be a valid value for filtering.
+NO_FILTER_OPTION = object()
+
 
 class OptionsPopup(Gtk.Window):
 
@@ -378,6 +382,7 @@ class DataGridController(object):
         if get_full_path is None:
             get_full_path = default_get_full_path
 
+        self.extra_filter_widgets = {}
         self.container = container
 
         self.decode_fallback = decode_fallback
@@ -449,6 +454,10 @@ class DataGridController(object):
 
         self.bind_datasource(data_source)
 
+    ###
+    # Public
+    ###
+
     def bind_datasource(self, data_source):
         """Binds a data source to the datagrid.
 
@@ -498,7 +507,7 @@ class DataGridController(object):
             self.container.label_date_to,
             self.container.image_end_date,
             self.container.vbox_end_date,
-            self.container.vseparator2
+            self.container.filters_separator,
         )
         if len(liststore_date_cols) == 0:
             for widget in widgets:
@@ -508,6 +517,53 @@ class DataGridController(object):
                 widget.show()
 
         self._refresh_view()
+
+    def add_options_filter(self, attr, options, add_empty_option=True):
+        """Add optional options filter for attr.
+
+        :param str attr: the attr that will be filtered
+        :param iterable options: the options that will be displayed
+            on the filter as a tuple with (label, option).
+            The label will be displayed as on the combo and the
+            option will be used to generate the WHERE clause
+        :param bool add_empty_option: if we should add an empty
+            option as the first option in the combo. Its label will
+            be the label of the column in question and selecting
+            it will be the same as not filtering by that attr.
+        :returns: the newly created combobox
+        :rtype: :class:`Gtk.ComboBox`
+        """
+        for col_dict in self.model.columns:
+            if col_dict['name'] == attr:
+                label = col_dict['display']
+                break
+        else:
+            raise ValueError
+
+        model = Gtk.ListStore(str, object)
+        if add_empty_option:
+            model.append((label, NO_FILTER_OPTION))
+        for option in options:
+            model.append(option)
+
+        combo = Gtk.ComboBox()
+        combo.set_model(model)
+        renderer = Gtk.CellRendererText()
+        combo.pack_start(renderer, True)
+        combo.add_attribute(renderer, 'text', 0)
+        combo.set_active(0)
+
+        combo.connect('changed', self.on_filter_changed, attr)
+
+        self.extra_filter_widgets[attr] = combo
+        self.container.extra_filters.pack_start(
+            combo, expand=False, fill=False, padding=0)
+        self.container.extra_filters.show_all()
+        # Make sure this separator is visible. It may have been hidden
+        # if we don't have any datetime columns.
+        self.container.filters_separator.show()
+
+        return combo
 
     ###
     # Callbacks
@@ -680,6 +736,30 @@ class DataGridController(object):
         :type btn: :class:`Gtk.Button`
         """
         self.tree_view.collapse_all()
+
+    def on_filter_changed(self, combo, attr):
+        """Handle selection changed on filter comboboxes.
+
+        :param combo: the combo that received the signal
+        :type combo: :class:`Gtk.ComboBox`
+        :param str attr: the name of the attr to filter
+        """
+        model = combo.get_model()
+        value = model[combo.get_active()][1]
+
+        if value is NO_FILTER_OPTION:
+            remove_keys = [attr]
+            update_dict = None
+        else:
+            remove_keys = None
+            update_dict = {
+                attr: {
+                    'operator': 'is' if value is None else '=',
+                    'param': value,
+                }
+            }
+
+        self._refresh_view(update_dict=update_dict, remove_keys=remove_keys)
 
     def on_data_loaded(self, model, total_recs):
         """Update the total records label.

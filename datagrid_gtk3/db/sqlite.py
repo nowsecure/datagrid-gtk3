@@ -184,35 +184,10 @@ class SQLiteDataSource(DataSource):
                                 last_page = True
                 if not last_page:
                     if self.PARENT_ID_COLUMN:
-                        # FIXME: We should use sqlalchemy to construct the
-                        # queries in the whole module
-                        parent_id = params.get('parent_id')
-                        operator = 'is' if parent_id is None else '='
-                        if where_sql:
-                            parent_where = '%s AND %s %s ?' % (
-                                where_sql, self.PARENT_ID_COLUMN, operator)
-                        else:
-                            parent_where = ' WHERE %s %s ? ' % (
-                                self.PARENT_ID_COLUMN, operator)
-
-                        # Check if the row has any children
-                        count_sql = (
-                            '(SELECT COUNT(1) FROM %s AS __count '
-                            ' WHERE __count.%s = __real_table.%s)' % (
-                                self.table,
-                                self.PARENT_ID_COLUMN, self.ID_COLUMN))
-
-                        columns = ', '.join([self.column_name_str, count_sql])
-                        sql = 'SELECT %s FROM %s AS __real_table %s %s' % (
-                            columns, self.table, parent_where, order_sql)
-
-                        bindings_ = bindings + [parent_id]
-                        logger.debug('SQL: %s, %s', sql, bindings_)
-
-                        for row in cursor.execute(sql, bindings_):
-                            children_len = row.pop(-1)
-                            rows.append(
-                                Node(data=row, children_len=children_len))
+                        rows.extend(
+                            self._load_tree_rows(
+                                cursor, where_sql, bindings, order_sql,
+                                params.get('parent_id')))
                     else:
                         sql = 'SELECT %s FROM %s %s %s LIMIT %d OFFSET %d' % (
                             self.column_name_str, self.table, where_sql,
@@ -549,6 +524,86 @@ class SQLiteDataSource(DataSource):
                     self.parent_column_idx += 1
 
         return cols
+
+    def _load_tree_rows(self, cursor, where_sql, bindings, order_sql, parent_id):
+        """Load rows as a tree."""
+        # FIXME: We should use sqlalchemy to construct the queries here,
+        # but for that _get_where_clause needs to be adapted.
+        def get_rows(columns, where, bindings_):
+            sql = 'SELECT %s FROM %s AS __real_table %s %s' % (
+                columns, self.table, where, order_sql)
+
+            logger.debug('SQL: %s, %s', sql, bindings_)
+
+            for row in cursor.execute(sql, bindings_):
+                yield row
+
+        if where_sql:
+            # FIXME: If we have a where clause, we cant load the results lazily
+            # because, we don't know if a row's children/grandchildren/etc will
+            # match.  If this optimization (loading the leafs and the necessary
+            # parents until the root) good enough?
+            children = {}
+            node_mapper = {}
+
+            def load_rows(where, bindings_):
+                columns = self.column_name_str
+                for row in get_rows(columns, where, bindings_):
+                    row_id = row[self.id_column_idx]
+                    if row_id in node_mapper:
+                        continue
+
+                    c_list = children.setdefault(
+                        row[self.parent_column_idx], [])
+                    node = Node(data=row)
+                    c_list.append(node)
+                    node_mapper[row_id] = node
+
+            load_rows(where_sql, bindings)
+            if not children:
+                return
+
+            # Load parents incrementally until we are left with the root
+            while children.keys() != [None]:
+                parents_to_load = []
+                for parent, c_list in children.items():
+                    if parent is None:
+                        continue
+
+                    node = node_mapper.get(parent, None)
+                    if node is None:
+                        parents_to_load.append(parent)
+                        continue
+
+                    node.extend(c_list)
+                    node.children_len = len(node)
+                    del children[parent]
+
+                if parents_to_load:
+                    # FIXME: Shouldn't cursor.execute handle this?
+                    marker = ','.join('?' for p in parents_to_load)
+                    where = 'WHERE %s IN (%s)' % (self.ID_COLUMN, marker)
+                    load_rows(where, parents_to_load)
+
+            for node in children[None]:
+                yield node
+        else:
+            # If there's no where clause, we can load the results lazily
+            operator = 'is' if parent_id is None else '='
+            parent_where = ' WHERE %s %s ? ' % (
+                self.PARENT_ID_COLUMN, operator)
+
+            # Check if the row has any children
+            count_sql = (
+                '(SELECT COUNT(1) FROM %s AS __count '
+                ' WHERE __count.%s = __real_table.%s)' % (
+                    self.table, self.PARENT_ID_COLUMN, self.ID_COLUMN))
+            columns = ', '.join([self.column_name_str, count_sql])
+
+            bindings_ = bindings + [parent_id]
+            for row in get_rows(columns, parent_where, bindings_):
+                children_len = row.pop(-1)
+                yield Node(data=row, children_len=children_len)
 
 
 def rank(matchinfo):
