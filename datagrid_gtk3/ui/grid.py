@@ -59,7 +59,8 @@ class OptionsPopup(Gtk.Window):
     MAX_HEIGHT = 500
 
     (VIEW_TREE,
-     VIEW_ICON) = range(2)
+     VIEW_FLAT,
+     VIEW_ICON) = range(3)
 
     __gsignals__ = {
         'column-visibility-changed': (GObject.SignalFlags.RUN_FIRST,
@@ -194,20 +195,37 @@ class OptionsPopup(Gtk.Window):
 
     def _get_view_options(self):
         """Build view options for datagrid."""
-        tv_radio = Gtk.RadioButton(label='Tree View')
-        yield tv_radio
+        iters = {}
+        model = Gtk.ListStore(str, int)
 
-        iv_radio = Gtk.RadioButton(label='Icon View', group=tv_radio)
-        # We can only change to icon view if we have at least one column
-        # with 'image' transformation.
-        iv_radio.set_sensitive(
-            any(c['transform'] == 'image'
-                for c in self._controller.model.columns))
+        iters[self.VIEW_TREE] = model.append(("Tree View", self.VIEW_TREE))
 
-        is_iconview = isinstance(self._controller.view, DataGridIconView)
-        iv_radio.set_active(is_iconview)
-        tv_radio.connect('toggled', self.on_treeview_radio_toggled)
-        yield iv_radio
+        if self._controller.model.flat_column_idx is not None:
+            iters[self.VIEW_FLAT] = model.append(("Flat View", self.VIEW_FLAT))
+
+        if any(c['transform'] == 'image'
+               for c in self._controller.model.columns):
+            iters[self.VIEW_ICON] = model.append(("Icon View", self.VIEW_ICON))
+
+        combo = Gtk.ComboBox()
+        combo.set_model(model)
+        renderer = Gtk.CellRendererText()
+        combo.pack_start(renderer, True)
+        combo.add_attribute(renderer, 'text', 0)
+
+        if isinstance(self._controller.view, DataGridView):
+            if self._controller.model.active_params.get('flat', False):
+                combo.set_active_iter(iters[self.VIEW_FLAT])
+            else:
+                combo.set_active_iter(iters[self.VIEW_TREE])
+        elif isinstance(self._controller.view, DataGridIconView):
+            combo.set_active_iter(iters[self.VIEW_ICON])
+        else:
+            raise AssertionError("Unknown view type %r" % (
+                self._controller.view, ))
+
+        combo.connect('changed', self.on_combo_view_changed)
+        yield combo
 
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
@@ -273,13 +291,17 @@ class OptionsPopup(Gtk.Window):
         if not intersection[0]:
             self.popdown()
 
-    def on_treeview_radio_toggled(self, widget):
-        """Handle changes on the views radio.
+    def on_combo_view_changed(self, widget):
+        """Handle changes on the view combo.
 
-        Emit 'view-changed' when the radio selection changes
+        Emit 'view-changed' for the given view.
+
+        :param widget: the combobox that received the event
+        :type widget: :class:`Gtk.ComboBox`
         """
-        self.emit('view-changed',
-                  self.VIEW_TREE if widget.get_active() else self.VIEW_ICON)
+        model = widget.get_model()
+        value = model[widget.get_active()][1]
+        self.emit('view-changed', value)
         self.popdown()
 
     def on_toggle_button_toggled(self, widget):
@@ -619,12 +641,16 @@ class DataGridController(object):
             self.view = self.icon_view
             self.model.image_max_size = 100.0
             self.model.image_draw_border = True
-        elif new_view == OptionsPopup.VIEW_TREE:
+        elif new_view in [OptionsPopup.VIEW_TREE, OptionsPopup.VIEW_FLAT]:
             self.view = self.tree_view
             self.model.image_max_size = 24.0
             self.model.image_draw_border = False
         else:
             raise AssertionError("Unrecognized option %r" % (new_view, ))
+
+        # We want flat for both flat view and icon
+        self.model.active_params['flat'] = new_view in [
+            OptionsPopup.VIEW_FLAT, OptionsPopup.VIEW_ICON]
 
         child = self.container.grid_scrolledwindow.get_child()
         self.container.grid_scrolledwindow.remove(child)
@@ -1158,6 +1184,8 @@ class DataGridView(Gtk.TreeView):
             self.model.data_source.ID_COLUMN,
             self.model.data_source.PARENT_ID_COLUMN,
             '__selected'])
+        if not self.model.active_params.get('flat', False):
+            dont_display.add(self.model.data_source.FLAT_COLUMN)
 
         samples = itertools.islice(
             (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE)
@@ -1551,7 +1579,7 @@ class DataGridModel(GenericTreeModel):
         self._invisible_images = {}
         self._fallback_images = {}
         self.visible_range = None
-        self.active_params = {}
+        self.active_params = {'flat': False}
         self.data_source = data_source
         self.get_media_callback = get_media_callback
         self.decode_fallback = decode_fallback
@@ -1569,6 +1597,7 @@ class DataGridModel(GenericTreeModel):
         self.row_id_mapper = {}
         self.id_column_idx = None
         self.parent_column_idx = None
+        self.flat_column_idx = None
         self.rows = None
         self.total_recs = None
 
@@ -1586,6 +1615,7 @@ class DataGridModel(GenericTreeModel):
 
         self.id_column_idx = self.data_source.id_column_idx
         self.parent_column_idx = self.data_source.parent_column_idx
+        self.flat_column_idx = self.data_source.flat_column_idx
         self.total_recs = self.data_source.total_recs
 
         for i, row in enumerate(self.rows):

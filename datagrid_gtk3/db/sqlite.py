@@ -116,6 +116,7 @@ class SQLiteDataSource(DataSource):
     }
     ID_COLUMN = 'rowid'
     PARENT_ID_COLUMN = None
+    FLAT_COLUMN = None
 
     def __init__(self, db_file, table=None, update_table=None, config=None,
                  ensure_selected_column=True, display_all=False, query=None):
@@ -136,6 +137,7 @@ class SQLiteDataSource(DataSource):
         self.config = config
         self.id_column_idx = None
         self.parent_column_idx = None
+        self.flat_column_idx = None
         self.columns = self._get_columns()
         for col in self.columns:
             self.table.append_column(column(col['name']))
@@ -197,6 +199,12 @@ class SQLiteDataSource(DataSource):
         if self.total_recs is not None and offset >= self.total_recs:
             return rows
 
+        # Flat
+        flat = params.get('flat', False)
+        if flat:
+            flat_where = operator.ne(self.table.columns[self.FLAT_COLUMN], None)
+            where = and_(where, flat_where) if where is not None else flat_where
+
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = lambda cursor, row: list(row)
             # ^^ make result lists mutable so we can change values in
@@ -213,7 +221,7 @@ class SQLiteDataSource(DataSource):
                     conn, self.table, [func.count(1)], where=where)
                 self.total_recs = int(list(res)[0][0])
 
-            if self.PARENT_ID_COLUMN:
+            if self.PARENT_ID_COLUMN and not flat:
                 rows.extend(
                     self._load_tree_rows(
                         conn, where, order_by, params.get('parent_id', None)))
@@ -500,6 +508,8 @@ class SQLiteDataSource(DataSource):
                         self.id_column_idx = i
                     if col_name == self.PARENT_ID_COLUMN:
                         self.parent_column_idx = i
+                    if col_name == self.FLAT_COLUMN:
+                        self.flat_column_idx = i
 
                     if row[1] == '__selected':
                         col_dict['transform'] = 'boolean'
@@ -527,6 +537,8 @@ class SQLiteDataSource(DataSource):
                     self.id_column_idx += 1
                 if has_selected and self.parent_column_idx is not None:
                     self.parent_column_idx += 1
+                if has_selected and self.flat_column_idx is not None:
+                    self.flat_column_idx += 1
 
         return cols
 
