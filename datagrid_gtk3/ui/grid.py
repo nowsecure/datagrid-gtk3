@@ -1280,6 +1280,11 @@ class DataGridModel(GenericTreeModel):
     MIN_TIMESTAMP = 0  # 1970
     MAX_TIMESTAMP = 2147485547  # 2038
 
+    # iOS timestamps start from 2001-01-01
+    IOS_TIMESTAMP_DIFF = int(1000 * (
+        datetime(2001, 1, 1) - datetime(1970, 1, 1)
+    ).total_seconds())
+
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
         """Set up model."""
@@ -1296,7 +1301,7 @@ class DataGridModel(GenericTreeModel):
         self.datetime_columns = []
         self.column_types = []
         for column in self.columns:
-            if column['transform'] == 'timestamp':
+            if column['transform'] in ('timestamp', 'ios_timestamp'):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
         self.display_columns = None
@@ -1410,6 +1415,14 @@ class DataGridModel(GenericTreeModel):
                 value = self._datetime_transform(value)
             else:
                 return ''
+
+        elif col_dict['transform'] == 'ios_timestamp':
+            if value:
+                value += self.IOS_TIMESTAMP_DIFF
+                value = self._datetime_transform(value)
+            else:
+                return None
+
         else:
             # If no transformation is required, at least convert the value to
             # str as required by CellRendererText
