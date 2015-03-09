@@ -1,9 +1,10 @@
 """Module containing classes for datagrid MVC implementation."""
 
 import base64
-import os
-from datetime import datetime
+import datetime
 import itertools
+import logging
+import os
 
 from gi.repository import (
     GObject,
@@ -13,11 +14,10 @@ from gi.repository import (
     Pango,
 )
 from pygtkcompat.generictreemodel import GenericTreeModel
-from PIL import Image
 
 from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
-from datagrid_gtk3.utils import imageutils
+from datagrid_gtk3.utils.transformations import get_transformer
 
 GRID_LABEL_MAX_LENGTH = 100
 _MEDIA_FILES = os.path.join(
@@ -27,6 +27,7 @@ _MEDIA_FILES = os.path.join(
     "media"
 )
 
+logger = logging.getLogger(__name__)
 _no_image_loader = GdkPixbuf.PixbufLoader.new_with_type("png")
 _no_image_loader.write(base64.b64decode("""
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAABmJLR0QA/wD/AP+gvaeTAAAACXBI
@@ -863,7 +864,7 @@ class DataGridController(object):
         :return: timestamp
         :rtype: int
         """
-        date = datetime.strptime(date_str, '%d-%b-%Y %H:%M')
+        date = datetime.datetime.strptime(date_str, '%d-%b-%Y %H:%M')
         timestamp = int(date.strftime('%s'))
         # TODO: may need to restore below code when adding times to UI
         # utc_timestamp = int(datetime.fromutctimestamp(timestamp).
@@ -1572,11 +1573,6 @@ class DataGridModel(GenericTreeModel):
     MIN_TIMESTAMP = 0  # 1970
     MAX_TIMESTAMP = 2147485547  # 2038
 
-    # iOS timestamps start from 2001-01-01
-    IOS_TIMESTAMP_DIFF = (
-        datetime(2001, 1, 1) - datetime(1970, 1, 1)
-    ).total_seconds()
-
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
         """Set up model."""
@@ -1698,75 +1694,62 @@ class DataGridModel(GenericTreeModel):
         :rtype: unicode or int or bool or None
         """
         col_dict = self.columns[column_index]
-        if col_dict['transform'] is None:
-            if value is None:
-                value = '<NULL>'
-                return value
+        col_name = col_dict['name']
 
-            if isinstance(value, str):
-                value = unicode(value, self.encoding_hint, 'replace')
+        # Defaults to string transformer if None
+        transformer_name = col_dict['transform'] or 'string'
+        transformer = get_transformer(transformer_name)
+        transformer_kwargs = {}
+
+        if transformer is None:
+            logger.warning("No transformer found for %s", transformer_name)
+            return value
+
+        if transformer_name == 'boolean' and col_name == '__selected':
+            # __selected is an exception to the boolean transformation.
+            # It requires a bool value and not a pixbuf
+            return bool(value)
+        elif transformer_name == 'image':
+            transformer_kwargs.update(dict(
+                size=self.image_max_size,
+                draw_border=self.image_draw_border,
+                border_size=self.IMAGE_BORDER_SIZE,
+                shadow_size=self.IMAGE_SHADOW_SIZE,
+                shadow_offset=self.IMAGE_SHADOW_OFFSET,
+            ))
+
+            # If no value, use an invisible image as a placeholder
+            if not value:
+                invisible_img = self._invisible_images.get(self.image_max_size)
+                if not invisible_img:
+                    invisible_img = NO_IMAGE_PIXBUF.scale_simple(
+                        self.image_max_size, self.image_max_size,
+                        GdkPixbuf.InterpType.NEAREST)
+                    self._invisible_images[self.image_max_size] = invisible_img
+                return invisible_img
+
+            # When not visible on the iconview, use an already generated
+            # fallback image (that has the same dimensions as the real
+            # image should have) to improve loading time.
+            if not visible:
+                key = (self.image_draw_border, self.image_max_size)
+                fallback = self._fallback_images.get(key)
+                if not fallback:
+                    fallback = transformer(None, **transformer_kwargs)
+                    self._fallback_images[key] = fallback
+                return fallback
+
+            if value.startswith(self.IMAGE_PREFIX):
+                value = value[len(self.IMAGE_PREFIX):]
             else:
-                try:
-                    value = unicode(value)
-                except UnicodeDecodeError:
-                    value = self.decode_fallback(value)
-            value = value.splitlines()
-            if value:
-                # don't show more than GRID_LABEL_MAX_LENGTH chars in treeview;
-                #   helps with performance
-                # print value, GRID_LABEL_MAX_LENGTH
-                if len(value[0]) > GRID_LABEL_MAX_LENGTH:
-                    value = (
-                        '%s [...]' % (
-                            value[0][:GRID_LABEL_MAX_LENGTH]
-                        )
-                    )
-                else:
-                    value = ' '.join(value)
-            else:
-                value = ''
+                value = None
+        elif transformer_name == 'string':
+            transformer_kwargs.update(dict(
+                max_length=GRID_LABEL_MAX_LENGTH,
+                decode_fallback=self.decode_fallback,
+            ))
 
-        elif col_dict['transform'] == 'boolean':
-            if col_dict['name'] != '__selected':
-                value = self._boolean_transform(value)
-            else:
-                if value == 1:
-                    return True
-                # 0 or null
-                return False
-
-        elif col_dict['transform'] == 'image':
-            value = self._image_transform(value, visible=visible)
-
-        elif col_dict['transform'] == 'timestamp':
-            if value:
-                value = self._datetime_transform(value)
-            else:
-                return ''
-
-        elif col_dict['transform'] == 'ios_timestamp':
-            if value:
-                value += self.IOS_TIMESTAMP_DIFF
-                value = self._datetime_transform(value)
-            else:
-                return None
-
-        elif col_dict['transform'] == 'bytes':
-            if value:
-                value = self._bytes_transform(value)
-            else:
-                return ''
-
-        # At the end, if value is unicode, it needs to be converted to
-        # an utf-8 encoded str or it won't be rendered in the treeview.
-        if isinstance(value, unicode):
-            value = value.encode('utf-8')
-        else:
-            # If no transformation is required, at least convert the value to
-            # str as required by CellRendererText
-            value = str(value) if value is not None else ''
-
-        return value
+        return transformer(value, **transformer_kwargs)
 
     def set_value(self, itr, column, value, emit_event=True):
         """Set the value in the model and update the data source with it.
@@ -1871,163 +1854,6 @@ class DataGridModel(GenericTreeModel):
             return get_row_by_iter_aux(iter_aux[1:], rows[iter_aux[0]])
 
         return get_row_by_iter_aux(iter_, self.rows)
-
-    ###
-    # Transforms
-    ###
-
-    def _boolean_transform(self, value):
-        """Transform boolean values to a stock image indicating True or False.
-
-        :param bool value: True or False
-        """
-        img = Gtk.Image()
-        if value:
-            icon = Gtk.STOCK_YES
-        else:
-            # NOTE: should be STOCK_NO but looks crappy in Lubuntu
-            icon = Gtk.STOCK_CANCEL
-        pixbuf = img.render_icon(icon, Gtk.IconSize.MENU)
-        return pixbuf
-
-    def _image_transform(self, value, visible=True):
-        """Render a thumbnail of an image for given path.
-
-        :param str value: Path to image file.
-        """
-        if not value:
-            invisible_img = self._invisible_images.get(self.image_max_size)
-            if not invisible_img:
-                invisible_img = NO_IMAGE_PIXBUF.scale_simple(
-                    self.image_max_size, self.image_max_size,
-                    GdkPixbuf.InterpType.NEAREST)
-                self._invisible_images[self.image_max_size] = invisible_img
-            return invisible_img
-
-        if not visible:
-            key = (self.image_draw_border, self.image_max_size)
-            fallback = self._fallback_images.get(key)
-            if not fallback:
-                fallback = self._get_pixbuf()
-                self._fallback_images[key] = fallback
-            return fallback
-
-        if value.startswith(self.IMAGE_PREFIX):
-            # TODO: ensure performance not affected by scaling images
-            #   with large recordsets, use file_ = 'icons/image.png' if so
-            # TODO: refactor image scaling to its own utility function
-            filename = value[len(self.IMAGE_PREFIX):]
-        else:
-            filename = None
-
-        return self._get_pixbuf(filename)
-
-    def _bytes_transform(self, value):
-        """Transform bytes into a human-readable value.
-
-        :param int value: bytes to be humanized
-        :returns: the humanized bytes
-        :rtype: str
-        """
-        for suffix, factor in [
-                ('PB', 1 << 50),
-                ('TB', 1 << 40),
-                ('GB', 1 << 30),
-                ('MB', 1 << 20),
-                ('kB', 1 << 10),
-                ('B', 1)]:
-            if value >= factor:
-                value = '%.*f %s' % (1, float(value) / factor, suffix)
-                break
-        else:
-            raise ValueError('Unexpected value: %s' % (value, ))
-
-        return value
-
-    def _datetime_transform(self, value):
-        """Transform timestamps to ISO 8601 date format.
-
-        :param int value: Unix timestamp
-        """
-        timestamp = value
-        #  If timestamp value is -1, the actual data is None.
-        if timestamp == -1:
-            return ''
-        # TODO: ??? When is timestamp ever -2?
-        if timestamp == -2:
-            return ''
-
-        if timestamp < self.MIN_TIMESTAMP:
-            return value
-        if timestamp > self.MAX_TIMESTAMP:
-            # might be milliseconds
-            try:
-                dt = datetime.utcfromtimestamp(timestamp / 1000)
-            except ValueError:
-                # Last try, microseconds
-                try:
-                    dt = datetime.utcfromtimestamp(timestamp / 1000000)
-                except ValueError:
-                    return timestamp
-        else:
-            try:
-                dt = datetime.utcfromtimestamp(timestamp)
-            except ValueError:
-                return timestamp
-
-        iso = dt.isoformat()
-        return iso
-
-    def _get_pixbuf(self, path=None):
-        """Resize the image if needed to fit :obj:`.image_max_size`.
-
-        :param str image: the image path or `None` to use a fallback image
-        :returns: the resized pixbuf
-        :rtype: :class:`GdkPixbuf.Pixbuf`
-        """
-        fallback = self.get_media_callback('icons/image.png')
-        path = path or fallback
-
-        try:
-            image = Image.open(path)
-            image.load()
-        except IOError:
-            # If the image is damaged for some reason, use fallback
-            image = Image.open(fallback)
-
-        image.thumbnail(
-            (self.image_max_size, self.image_max_size), Image.BICUBIC)
-
-        square_side = self.image_max_size
-        if self.image_draw_border:
-            image = imageutils.add_border(
-                image, border_size=self.IMAGE_BORDER_SIZE)
-            image = imageutils.add_drop_shadow(
-                image, border_size=self.IMAGE_SHADOW_SIZE,
-                offset=(self.IMAGE_SHADOW_OFFSET, self.IMAGE_SHADOW_OFFSET))
-
-            square_side += self.IMAGE_BORDER_SIZE * 2
-            square_side += self.IMAGE_SHADOW_SIZE * 2
-            square_side += self.IMAGE_SHADOW_OFFSET
-
-        pixbuf = imageutils.image2pixbuf(image)
-        width = pixbuf.get_width()
-        height = pixbuf.get_height()
-
-        # Make sure the image is on the center of the image_max_size
-        square_pic = GdkPixbuf.Pixbuf.new(
-            GdkPixbuf.Colorspace.RGB, True, pixbuf.get_bits_per_sample(),
-            square_side, square_side)
-        # Fill with transparent white
-        square_pic.fill(0xffffff00)
-
-        dest_x = (square_side - width) / 2
-        dest_y = (square_side - height) / 2
-
-        pixbuf.copy_area(
-            0, 0, width, height, square_pic, dest_x, dest_y)
-
-        return square_pic
 
     ###
     # Required implementations for GenericTreeModel
