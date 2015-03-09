@@ -1180,12 +1180,12 @@ class DataGridView(Gtk.TreeView):
 
         # FIXME: We should find a better way for hiding this columns.
         # A way to specify the visibility on the columns config would be nice.
-        dont_display = set([
-            self.model.data_source.ID_COLUMN,
-            self.model.data_source.PARENT_ID_COLUMN,
-            '__selected'])
-        if not self.model.active_params.get('flat', False):
-            dont_display.add(self.model.data_source.FLAT_COLUMN)
+        dont_display = set(['__selected'])
+        if not self.model.data_source.display_all:
+            dont_display.add(self.model.data_source.ID_COLUMN)
+            dont_display.add(self.model.data_source.PARENT_ID_COLUMN)
+            if not self.model.active_params.get('flat', False):
+                dont_display.add(self.model.data_source.FLAT_COLUMN)
 
         samples = itertools.islice(
             (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE)
@@ -1608,7 +1608,6 @@ class DataGridModel(GenericTreeModel):
         if 'parent_id' in self.active_params:
             del self.active_params['parent_id']
 
-        self.data_source.total_recs = None
         self.row_id_mapper.clear()
         self.rows = self.data_source.load(self.active_params)
         self.rows.path = ()

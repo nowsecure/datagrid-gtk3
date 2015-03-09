@@ -24,7 +24,7 @@ from sqlalchemy.sql import (
     table as table_,
 )
 
-from datagrid_gtk3.db import DataSource
+from datagrid_gtk3.db import DataSource, Node
 
 logger = logging.getLogger(__name__)
 _compile = lambda q: q.compile(compile_kwargs={"literal_binds": True}).string
@@ -40,40 +40,6 @@ _OPERATOR_MAPPER = {
     '>': operator.gt,
     '>=': operator.ge,
 }
-
-
-class Node(list):
-
-    """A list that can hold data.
-
-    Just like a simple list, but one can set/get its data
-    from :obj:`.data`.
-
-    :param object data: the data that will be stored in this node
-    :param int children_len: the number of the children that will
-        be loaded lazely at some point
-    """
-
-    def __init__(self, data=None, children_len=0):
-        super(Node, self).__init__()
-
-        self.data = data
-        self.children_len = children_len
-        self.path = None
-
-    def is_children_loaded(self, recursive=False):
-        """Check if this node's children is loaded
-
-        :param bool recursive: wheather to ask each child if their
-            children is loaded (and their child too and so on) too.
-        :returns: `True` if children is loaded, otherwise `False`
-        :rtype: bool
-        """
-        loaded = len(self) == self.children_len
-        if recursive:
-            loaded = (loaded and
-                      all(c.is_children_loaded(recursive=True) for c in self))
-        return loaded
 
 
 class SQLiteDataSource(DataSource):
@@ -114,13 +80,12 @@ class SQLiteDataSource(DataSource):
         'REAL': float,
         'BLOB': str
     }
-    ID_COLUMN = 'rowid'
-    PARENT_ID_COLUMN = None
-    FLAT_COLUMN = None
 
     def __init__(self, db_file, table=None, update_table=None, config=None,
                  ensure_selected_column=True, display_all=False, query=None):
         """Process database column info."""
+        super(SQLiteDataSource, self).__init__()
+
         assert table or query  # either table or query must be given
         self.db_file = db_file
         self.table = table_(table if table else "__CustomQueryTempView")
@@ -135,13 +100,9 @@ class SQLiteDataSource(DataSource):
         else:
             self.update_table = table
         self.config = config
-        self.id_column_idx = None
-        self.parent_column_idx = None
-        self.flat_column_idx = None
         self.columns = self._get_columns()
         for col in self.columns:
             self.table.append_column(column(col['name']))
-        self.total_recs = None
 
     ###
     # Public
@@ -196,7 +157,7 @@ class SQLiteDataSource(DataSource):
         offset = page * self.MAX_RECS
         # A little optimization to avoid doing more queries when we
         # already loaded everything
-        if self.total_recs is not None and offset >= self.total_recs:
+        if page > 0 and offset >= self.total_recs:
             return rows
 
         # Flat
@@ -501,7 +462,8 @@ class SQLiteDataSource(DataSource):
                         'name': col_name,
                         'display': display_name,
                         'type': data_type,
-                        'transform': transform
+                        'transform': transform,
+                        'primary_key': bool(row[5]),
                     }
 
                     if col_name == self.ID_COLUMN:
@@ -526,7 +488,8 @@ class SQLiteDataSource(DataSource):
                         'name': '__selected',
                         'display': '__selected',
                         'type': int,
-                        'transform': 'boolean'
+                        'transform': 'boolean',
+                        'primary_key': False,
                     }
                     cols.insert(0, col_dict)
                     has_selected = True
@@ -539,6 +502,18 @@ class SQLiteDataSource(DataSource):
                     self.parent_column_idx += 1
                 if has_selected and self.flat_column_idx is not None:
                     self.flat_column_idx += 1
+
+                # FIXME: If the idcolumn doesn't match any column, use the
+                # first primary key we can find. This actually happen on the
+                # examples database.
+                if self.id_column_idx is None:
+                    for i, col_dict in enumerate(cols):
+                        if col_dict['primary_key']:
+                            self.ID_COLUMN = col_dict['name']
+                            self.id_column_idx = i
+                            break
+                    else:
+                        raise ValueError("No id column found.")
 
         return cols
 
