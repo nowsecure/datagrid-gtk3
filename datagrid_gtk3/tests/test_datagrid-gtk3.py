@@ -15,7 +15,7 @@ from gi.repository import (
 from PIL import Image
 import mock
 
-from datagrid_gtk3.db import sqlite
+from datagrid_gtk3.db.sqlite import SQLiteDataSource
 from datagrid_gtk3.tests.data import create_db
 from datagrid_gtk3.ui.grid import (
     DataGridContainer,
@@ -27,10 +27,6 @@ from datagrid_gtk3.ui.grid import (
     default_get_full_path,
 )
 from datagrid_gtk3.utils import imageutils
-
-
-class SQLiteDataSource(sqlite.SQLiteDataSource):
-    ID_COLUMN = '__viaextract_id'
 
 
 class DataGridControllerTest(unittest.TestCase):
@@ -226,6 +222,27 @@ class DataGridModelTest(unittest.TestCase):
         self.assertEqual(
             self.datagrid_model._datetime_transform(315532801000000),
             '1980-01-01T00:00:01')
+
+    def test_bytes_transform(self):
+        """Test bytes humanization."""
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(1),
+            '1.0 B')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(50),
+            '50.0 B')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(2348),
+            '2.3 kB')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(1420000),
+            '1.4 MB')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(1420000328),
+            '1.3 GB')
+        self.assertEqual(
+            self.datagrid_model._bytes_transform(24200003283214),
+            '22.0 TB')
 
     @mock.patch('datagrid_gtk3.ui.grid.NO_IMAGE_PIXBUF.scale_simple')
     def test_image_transform_no_value(self, scale_simple):

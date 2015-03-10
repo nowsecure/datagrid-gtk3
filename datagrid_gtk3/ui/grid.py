@@ -1,9 +1,9 @@
 """Module containing classes for datagrid MVC implementation."""
 
-import contextlib
 import base64
 import os
 from datetime import datetime
+import itertools
 
 from gi.repository import (
     GObject,
@@ -39,6 +39,10 @@ _no_image_loader.close()
 # repeat the lastest value read in a row for that column
 NO_IMAGE_PIXBUF = _no_image_loader.get_pixbuf()
 
+# Used to represent "no option selected" on filters. We use this instead of
+# None as it can be a valid value for filtering.
+NO_FILTER_OPTION = object()
+
 
 class OptionsPopup(Gtk.Window):
 
@@ -54,7 +58,8 @@ class OptionsPopup(Gtk.Window):
     MAX_HEIGHT = 500
 
     (VIEW_TREE,
-     VIEW_ICON) = range(2)
+     VIEW_FLAT,
+     VIEW_ICON) = range(3)
 
     __gsignals__ = {
         'column-visibility-changed': (GObject.SignalFlags.RUN_FIRST,
@@ -189,20 +194,37 @@ class OptionsPopup(Gtk.Window):
 
     def _get_view_options(self):
         """Build view options for datagrid."""
-        tv_radio = Gtk.RadioButton(label='Tree View')
-        yield tv_radio
+        iters = {}
+        model = Gtk.ListStore(str, int)
 
-        iv_radio = Gtk.RadioButton(label='Icon View', group=tv_radio)
-        # We can only change to icon view if we have at least one column
-        # with 'image' transformation.
-        iv_radio.set_sensitive(
-            any(c['transform'] == 'image'
-                for c in self._controller.model.columns))
+        iters[self.VIEW_TREE] = model.append(("Tree View", self.VIEW_TREE))
 
-        is_iconview = isinstance(self._controller.view, DataGridIconView)
-        iv_radio.set_active(is_iconview)
-        tv_radio.connect('toggled', self.on_treeview_radio_toggled)
-        yield iv_radio
+        if self._controller.model.flat_column_idx is not None:
+            iters[self.VIEW_FLAT] = model.append(("Flat View", self.VIEW_FLAT))
+
+        if any(c['transform'] == 'image'
+               for c in self._controller.model.columns):
+            iters[self.VIEW_ICON] = model.append(("Icon View", self.VIEW_ICON))
+
+        combo = Gtk.ComboBox()
+        combo.set_model(model)
+        renderer = Gtk.CellRendererText()
+        combo.pack_start(renderer, True)
+        combo.add_attribute(renderer, 'text', 0)
+
+        if isinstance(self._controller.view, DataGridView):
+            if self._controller.model.active_params.get('flat', False):
+                combo.set_active_iter(iters[self.VIEW_FLAT])
+            else:
+                combo.set_active_iter(iters[self.VIEW_TREE])
+        elif isinstance(self._controller.view, DataGridIconView):
+            combo.set_active_iter(iters[self.VIEW_ICON])
+        else:
+            raise AssertionError("Unknown view type %r" % (
+                self._controller.view, ))
+
+        combo.connect('changed', self.on_combo_view_changed)
+        yield combo
 
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
@@ -268,13 +290,17 @@ class OptionsPopup(Gtk.Window):
         if not intersection[0]:
             self.popdown()
 
-    def on_treeview_radio_toggled(self, widget):
-        """Handle changes on the views radio.
+    def on_combo_view_changed(self, widget):
+        """Handle changes on the view combo.
 
-        Emit 'view-changed' when the radio selection changes
+        Emit 'view-changed' for the given view.
+
+        :param widget: the combobox that received the event
+        :type widget: :class:`Gtk.ComboBox`
         """
-        self.emit('view-changed',
-                  self.VIEW_TREE if widget.get_active() else self.VIEW_ICON)
+        model = widget.get_model()
+        value = model[widget.get_active()][1]
+        self.emit('view-changed', value)
         self.popdown()
 
     def on_toggle_button_toggled(self, widget):
@@ -369,20 +395,23 @@ class DataGridController(object):
     MAX_TIMESTAMP = 2147485547  # 2038
 
     def __init__(self, container, data_source, selected_record_callback=None,
-                 activated_icon_callback=None, has_checkboxes=True,
-                 decode_fallback=None, get_full_path=None):
+                 activated_icon_callback=None, activated_row_callback=None,
+                 has_checkboxes=True, decode_fallback=None,
+                 get_full_path=None):
         """Setup UI controls and load initial data view."""
         if decode_fallback is None:
             decode_fallback = default_decode_fallback
         if get_full_path is None:
             get_full_path = default_get_full_path
 
+        self.extra_filter_widgets = {}
         self.container = container
 
         self.decode_fallback = decode_fallback
         self.get_full_path = get_full_path
         self.selected_record_callback = selected_record_callback
         self.activated_icon_callback = activated_icon_callback
+        self.activated_row_callback = activated_row_callback
 
         self.vscroll = container.grid_scrolledwindow.get_vadjustment()
         self.vscroll.connect('value-changed', self.on_scrolled)
@@ -392,10 +421,19 @@ class DataGridController(object):
 
         self.tree_view.connect('cursor-changed',
                                self.on_treeview_cursor_changed)
+        self.tree_view.connect('row-activated',
+                               self.on_treeview_row_activated)
+        self.tree_view.connect('all-expanded',
+                               self.on_treeview_all_expanded)
         self.icon_view.connect('selection-changed',
                                self.on_iconview_selection_changed)
         self.icon_view.connect('item-activated',
                                self.on_iconview_item_activated)
+
+        self.container.expand_all_btn.connect(
+            'clicked', self.on_expand_all_btn_clicked)
+        self.container.collapse_all_btn.connect(
+            'clicked', self.on_collapse_all_btn_clicked)
 
         # The treview will be the default view
         self.view = self.tree_view
@@ -437,6 +475,10 @@ class DataGridController(object):
         self.container.grid_vbox.show_all()
 
         self.bind_datasource(data_source)
+
+    ###
+    # Public
+    ###
 
     def bind_datasource(self, data_source):
         """Binds a data source to the datagrid.
@@ -487,7 +529,7 @@ class DataGridController(object):
             self.container.label_date_to,
             self.container.image_end_date,
             self.container.vbox_end_date,
-            self.container.vseparator2
+            self.container.filters_separator,
         )
         if len(liststore_date_cols) == 0:
             for widget in widgets:
@@ -496,7 +538,54 @@ class DataGridController(object):
             for widget in widgets:
                 widget.show()
 
-        self.view.refresh()
+        self._refresh_view()
+
+    def add_options_filter(self, attr, options, add_empty_option=True):
+        """Add optional options filter for attr.
+
+        :param str attr: the attr that will be filtered
+        :param iterable options: the options that will be displayed
+            on the filter as a tuple with (label, option).
+            The label will be displayed as on the combo and the
+            option will be used to generate the WHERE clause
+        :param bool add_empty_option: if we should add an empty
+            option as the first option in the combo. Its label will
+            be the label of the column in question and selecting
+            it will be the same as not filtering by that attr.
+        :returns: the newly created combobox
+        :rtype: :class:`Gtk.ComboBox`
+        """
+        for col_dict in self.model.columns:
+            if col_dict['name'] == attr:
+                label = col_dict['display']
+                break
+        else:
+            raise ValueError
+
+        model = Gtk.ListStore(str, object)
+        if add_empty_option:
+            model.append((label, NO_FILTER_OPTION))
+        for option in options:
+            model.append(option)
+
+        combo = Gtk.ComboBox()
+        combo.set_model(model)
+        renderer = Gtk.CellRendererText()
+        combo.pack_start(renderer, True)
+        combo.add_attribute(renderer, 'text', 0)
+        combo.set_active(0)
+
+        combo.connect('changed', self.on_filter_changed, attr)
+
+        self.extra_filter_widgets[attr] = combo
+        self.container.extra_filters.pack_start(
+            combo, expand=False, fill=False, padding=0)
+        self.container.extra_filters.show_all()
+        # Make sure this separator is visible. It may have been hidden
+        # if we don't have any datetime columns.
+        self.container.filters_separator.show()
+
+        return combo
 
     ###
     # Callbacks
@@ -552,19 +641,22 @@ class DataGridController(object):
             self.view = self.icon_view
             self.model.image_max_size = 100.0
             self.model.image_draw_border = True
-        elif new_view == OptionsPopup.VIEW_TREE:
+        elif new_view in [OptionsPopup.VIEW_TREE, OptionsPopup.VIEW_FLAT]:
             self.view = self.tree_view
             self.model.image_max_size = 24.0
             self.model.image_draw_border = False
         else:
             raise AssertionError("Unrecognized option %r" % (new_view, ))
 
+        # We want flat for flat view only
+        self.model.active_params['flat'] = new_view == OptionsPopup.VIEW_FLAT
+
         child = self.container.grid_scrolledwindow.get_child()
         self.container.grid_scrolledwindow.remove(child)
         self.container.grid_scrolledwindow.add(self.view)
         self.view.show_all()
 
-        self.view.refresh()
+        self._refresh_view()
         # FIXME: Is there a way to keep the selection after the view was
         # refreshed? The actual selected paths are not guaranteed to be the
         # same, so how can we get them again?
@@ -582,7 +674,7 @@ class DataGridController(object):
         model, row_iterator = selection.get_selected()
         if row_iterator and self.selected_record_callback:
             record = self.model.data_source.get_single_record(
-                model[row_iterator][1])
+                model[row_iterator][self.model.id_column_idx])
             self.selected_record_callback(record)
         elif self.selected_record_callback:
             self.selected_record_callback(None)
@@ -598,7 +690,7 @@ class DataGridController(object):
         if row_iterator and self.selected_record_callback:
             model = view.get_model()
             record = self.model.data_source.get_single_record(
-                model[row_iterator][1])
+                model[row_iterator][self.model.id_column_idx])
             self.selected_record_callback(record)
         elif self.selected_record_callback:
             self.selected_record_callback(None)
@@ -615,9 +707,85 @@ class DataGridController(object):
 
         row_iterator = view.model.get_iter(path)
         record = self.model.data_source.get_single_record(
-            self.model[row_iterator][1])
-        # Why is the pixbuf column on view.pixbuf_column -1 position in this rec?
+            self.model[row_iterator][self.model.id_column_idx])
+        # Why is the pixbuf column on view.pixbuf_column -1 position in
+        # this rec?
         self.activated_icon_callback(record, view.pixbuf_column - 1)
+
+    def on_treeview_row_activated(self, view, path, column):
+        """Handle row-activated signal on the treeview.
+
+        Run the optional :obj:`.activated_row_callback` when
+        a row gets activated.
+
+        :param view: The treeview containing the row
+        :type view: :class:`Gtk.TreeView`
+        :param path: the activated path
+        :type path: :class:`Gtk.TreePath`
+        :param column: the column that was activated on the row
+        :type column: class:`Gtk.TreeViewColumn`
+
+        """
+        if self.activated_row_callback is None:
+            return
+
+        row = self.model[self.model.get_iter(path)]
+        selected_id = row[self.model.id_column_idx]
+        record = self.model.data_source.get_single_record(selected_id)
+        self.activated_row_callback(record)
+
+    def on_treeview_all_expanded(self, view, all_expanded):
+        """Handle all-expanded signal on the treeview.
+
+        Set visibility for "expand all" and "collapse all" buttons
+        based on the all_expanded value.
+
+        :param view: The treeview that received the signal
+        :type view: :class:`Gtk.TreeView`
+        :param bool all_expanded: if all rows are expanded or not
+        """
+        self.container.expand_all_btn.set_visible(not all_expanded)
+        self.container.collapse_all_btn.set_visible(all_expanded)
+
+    def on_expand_all_btn_clicked(self, btn):
+        """Expand all rows on the treeview.
+
+        :param btn: the button that received the clicked event
+        :type btn: :class:`Gtk.Button`
+        """
+        self.tree_view.expand_all()
+
+    def on_collapse_all_btn_clicked(self, btn):
+        """Collapse all rows on the treeview.
+
+        :param btn: the button that received the clicked event
+        :type btn: :class:`Gtk.Button`
+        """
+        self.tree_view.collapse_all()
+
+    def on_filter_changed(self, combo, attr):
+        """Handle selection changed on filter comboboxes.
+
+        :param combo: the combo that received the signal
+        :type combo: :class:`Gtk.ComboBox`
+        :param str attr: the name of the attr to filter
+        """
+        model = combo.get_model()
+        value = model[combo.get_active()][1]
+
+        if value is NO_FILTER_OPTION:
+            remove_keys = [attr]
+            update_dict = None
+        else:
+            remove_keys = None
+            update_dict = {
+                attr: {
+                    'operator': 'is' if value is None else '=',
+                    'param': value,
+                }
+            }
+
+        self._refresh_view(update_dict=update_dict, remove_keys=remove_keys)
 
     def on_data_loaded(self, model, total_recs):
         """Update the total records label.
@@ -728,6 +896,17 @@ class DataGridController(object):
 
         self.view.refresh()
 
+        # If any of the root rows has children, we should show the
+        # expand/collapse buttons
+        if (self.view is self.tree_view and
+                any(len(row) > 0 for row in self.model.rows)):
+            self.container.expand_all_btn.set_visible(True)
+            self.container.collapse_all_btn.set_visible(False)
+        else:
+            for widget in [self.container.expand_all_btn,
+                           self.container.collapse_all_btn]:
+                widget.set_visible(False)
+
 
 class DataGridView(Gtk.TreeView):
 
@@ -738,6 +917,10 @@ class DataGridView(Gtk.TreeView):
     :keyword bool has_checkboxes: Whether record rows have a checkbox
 
     """
+
+    __gsignals__ = {
+        'all-expanded': (GObject.SignalFlags.RUN_FIRST, None, (bool, ))
+    }
 
     has_checkboxes = GObject.property(type=bool, default=True)
 
@@ -750,6 +933,8 @@ class DataGridView(Gtk.TreeView):
         super(DataGridView, self).__init__(**kwargs)
 
         self.connect_after('notify::model', self.after_notify_model)
+        self.connect('row-expanded', self.on_row_expanded)
+        self.connect('row-collapsed', self.on_row_collapsed)
 
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
@@ -760,6 +945,11 @@ class DataGridView(Gtk.TreeView):
         self.set_rules_hint(True)
         self.active_sort_column = None
         self.active_sort_column_order = None
+
+        self._expandable_ids = set()
+        self._expanded_ids = set()
+        self._all_expanded = False
+        self._block_all_expanded = False
 
     ###
     # Public
@@ -775,6 +965,43 @@ class DataGridView(Gtk.TreeView):
             self.remove_column(col)
 
         self._setup_columns()
+
+        self._expandable_ids.clear()
+        # After refreshing the model, some rows may not be present anymore.
+        # Let self._expanded_ids be constructed again by the events bellow
+        expanded_ids = self._expanded_ids.copy()
+        self._expanded_ids.clear()
+
+        self._block_all_expanded = True
+        # FIXME: This is very optimized, but on some situations (e.g. all paths
+        # are expanded and the user changed the sort column), this would make
+        # everything be loaded at the same time. Is there anything we can do
+        # regarding this issue?
+        for row_id in expanded_ids:
+            row = self.model.get_row_by_id(row_id, load_rows=True)
+            if row is None:
+                continue
+            self.expand_to_path(Gtk.TreePath(row.path))
+        self._block_all_expanded = False
+        self._check_all_expanded()
+
+    def expand_all(self):
+        """Expand all expandable rows on the view."""
+        # A little optimization to avoid calling _check_all_expanded
+        # for all rows that will be expanded
+        self._block_all_expanded = True
+        super(DataGridView, self).expand_all()
+        self._block_all_expanded = False
+        self._check_all_expanded()
+
+    def collapse_all(self):
+        """Collapse all expandable rows on the view."""
+        # A little optimization to avoid calling _check_all_expanded
+        # for all rows that will be collapsed
+        self._block_all_expanded = True
+        super(DataGridView, self).collapse_all()
+        self._block_all_expanded = False
+        self._check_all_expanded()
 
     ###
     # Callbacks
@@ -794,6 +1021,38 @@ class DataGridView(Gtk.TreeView):
             return
 
         model.connect('row-changed', self.on_model_row_changed)
+
+    def on_row_expanded(self, treeview, iter_, path):
+        """Handle row-expanded events.
+
+        Keep track of which rows are currently expanded
+
+        :param treeview: the treeview that had one of its rows expanded
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the expanded row
+        :type iter_: class:`Gtk.TreeIter`
+        :param path: the path pointing to the expanded row
+        :type path: :class:`Gtk.TreePath`
+        """
+        row_id = self.model.get_value(iter_, self.model.id_column_idx)
+        self._expanded_ids.add(row_id)
+        self._check_all_expanded()
+
+    def on_row_collapsed(self, treeview, iter_, path):
+        """Handle row-collapsed events.
+
+        Keep track of which rows are currently expanded
+
+        :param treeview: the treeview that had one of its rows collapsed
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the collapsed row
+        :type iter_: class:`Gtk.TreeIter`
+        :param path: the path pointing to the collapsed row
+        :type path: :class:`Gtk.TreePath`
+        """
+        self._expanded_ids.discard(
+            self.model.get_value(iter_, self.model.id_column_idx))
+        self._check_all_expanded()
 
     def on_model_row_changed(self, model, path, iter_):
         """Track row changes on model.
@@ -868,6 +1127,32 @@ class DataGridView(Gtk.TreeView):
     # Private
     ###
 
+    def _get_expandable_ids(self):
+        """Get the ids of the expandable rows."""
+        if not self._expandable_ids:
+            if not self.model.rows.is_children_loaded(recursive=True):
+                # If there's still anything to load, for sure all
+                # are not expanded. Return None to avoid confusing it with
+                # an empty set
+                return None
+
+            for row in self.model.iter_rows():
+                if len(row):
+                    row_id = row.data[self.model.id_column_idx]
+                    self._expandable_ids.add(row_id)
+
+        return self._expandable_ids
+
+    def _check_all_expanded(self):
+        """Check expanded rows and maybe emit all-expanded event"""
+        if self._block_all_expanded:
+            return
+
+        old_all_expanded = self._all_expanded
+        self._all_expanded = self._expanded_ids == self._get_expandable_ids()
+        if self._all_expanded != old_all_expanded:
+            self.emit('all-expanded', self._all_expanded)
+
     def _setup_columns(self):
         """Configure the column widgets in the view."""
         if self.has_checkboxes:
@@ -893,16 +1178,22 @@ class DataGridView(Gtk.TreeView):
             self.check_btn_toggle_all = check_btn
             self.append_column(col)
 
-        samples = self.model.rows[:self.SAMPLE_SIZE]
+        # FIXME: We should find a better way for hiding this columns.
+        # A way to specify the visibility on the columns config would be nice.
+        dont_display = set(['__selected'])
+        if not self.model.data_source.display_all:
+            dont_display.add(self.model.data_source.ID_COLUMN)
+            dont_display.add(self.model.data_source.PARENT_ID_COLUMN)
+            if not self.model.active_params.get('flat', False):
+                dont_display.add(self.model.data_source.FLAT_COLUMN)
+
+        samples = list(itertools.islice(
+            (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE))
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
             display = (self.model.display_columns is None
                        or item in self.model.display_columns)
-            if not self.model.data_source.display_all:
-                # First column is "_selected" checkbox,
-                # second is invisible primary key ID
-                display = display and column_index > 1
-            if display:
+            if display and column['name'] not in dont_display:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:
                     renderer = Gtk.CellRendererPixbuf()
@@ -923,6 +1214,7 @@ class DataGridView(Gtk.TreeView):
                 col.set_fixed_width(
                     self._get_best_column_width(column_index, samples))
                 col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+                col.set_expand(column['expand'])
                 if item == self.active_sort_column:
                     col.set_sort_indicator(True)
                     col.set_sort_order(self.active_sort_column_order)
@@ -1126,7 +1418,7 @@ class DataGridIconView(Gtk.IconView):
     has_checkboxes = GObject.property(type=bool, default=True)
 
     def __init__(self, model, **kwargs):
-        if not 'cell_area' in kwargs:
+        if 'cell_area' not in kwargs:
             kwargs['cell_area'] = DataGridCellAreaRenderer()
 
         super(DataGridIconView, self).__init__(**kwargs)
@@ -1293,7 +1585,7 @@ class DataGridModel(GenericTreeModel):
         self._invisible_images = {}
         self._fallback_images = {}
         self.visible_range = None
-        self.active_params = {}
+        self.active_params = {'flat': False}
         self.data_source = data_source
         self.get_media_callback = get_media_callback
         self.decode_fallback = decode_fallback
@@ -1308,6 +1600,10 @@ class DataGridModel(GenericTreeModel):
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
 
+        self.row_id_mapper = {}
+        self.id_column_idx = None
+        self.parent_column_idx = None
+        self.flat_column_idx = None
         self.rows = None
         self.total_recs = None
 
@@ -1315,29 +1611,62 @@ class DataGridModel(GenericTreeModel):
         """Refresh the model from the data source."""
         if 'page' in self.active_params:
             del self.active_params['page']
+        if 'parent_id' in self.active_params:
+            del self.active_params['parent_id']
 
-        self.data_source.load(self.active_params)
-        self.rows = self.data_source.rows
+        self.row_id_mapper.clear()
+        self.rows = self.data_source.load(self.active_params)
+        self.rows.path = ()
+
+        self.id_column_idx = self.data_source.id_column_idx
+        self.parent_column_idx = self.data_source.parent_column_idx
+        self.flat_column_idx = self.data_source.flat_column_idx
         self.total_recs = self.data_source.total_recs
+
+        for i, row in enumerate(self.rows):
+            row.path = (i, )
+            self.row_id_mapper[row.data[self.id_column_idx]] = row
+
         self.emit('data-loaded', self.total_recs)
 
-    def add_rows(self):
+    def add_rows(self, parent_node=None):
         """Add rows to the model from a new page of data and update the view.
 
         :return: True if update took place, False if not
         :rtype: bool
         """
-        self.active_params['page'] = self.active_params.get('page', 0) + 1
-
-        path = (len(self.rows) - 1,)
-        itr = self.get_iter(path)
-        self.data_source.load(self.active_params)
-        if not self.data_source.rows:
+        # When the data is hierarchical, all the root data was already loaded
+        if parent_node is None and self.parent_column_idx is not None:
             return False
 
-        for row in self.data_source.rows:
-            self.rows.append(row)
-            self.row_inserted(path, itr)
+        if parent_node is None:
+            parent_id = None
+            parent_row = self.rows
+            path_offset = self.rows[-1].path[-1] + 1
+            # We are not using pages for hierarchical data
+            self.active_params['page'] = self.active_params.get('page', 0) + 1
+        else:
+            parent_id = parent_node.data[self.id_column_idx]
+            parent_row = parent_node
+            path_offset = 0
+
+        self.active_params['parent_id'] = parent_id
+        rows = self.data_source.load(self.active_params)
+        if not len(rows):
+            return False
+
+        for i, row in enumerate(rows):
+            row.path = parent_row.path + (path_offset + i, )
+            self.row_id_mapper[row.data[self.id_column_idx]] = row
+            parent_row.append(row)
+
+            # FIXME: Non-hierarchical data need this to display the new row,
+            # but hierarchical ones not only will work without this, but will
+            # produce warnings if we try to call this for them.
+            if self.parent_column_idx is None:
+                path = Gtk.TreePath(row.path)
+                self.row_inserted(path, self.get_iter(path))
+
         return True
 
     def update_data_source(self, column, value, ids):
@@ -1403,7 +1732,6 @@ class DataGridModel(GenericTreeModel):
             else:
                 if value == 1:
                     return True
-
                 # 0 or null
                 return False
 
@@ -1422,6 +1750,12 @@ class DataGridModel(GenericTreeModel):
                 value = self._datetime_transform(value)
             else:
                 return None
+
+        elif col_dict['transform'] == 'bytes':
+            if value:
+                value = self._bytes_transform(value)
+            else:
+                return ''
 
         else:
             # If no transformation is required, at least convert the value to
@@ -1446,13 +1780,98 @@ class DataGridModel(GenericTreeModel):
         :param bool emit_event: if we should call :meth:`.row_changed`.
             Be sure to know what you are doing before passind `False` here
         """
-        path = self.get_path(itr)[0]
-        self.rows[path][column] = value
-        id_ = self.get_value(itr, 1)
+        path = self.get_path(itr)
+        # path and iter are the same in this model.
+        row = self._get_row_by_path(path)
+        row.data[column] = value
+        id_ = self.get_value(itr, self.id_column_idx)
         self.update_data_source(
             self.columns[column]['name'], value, [int(id_)])
         if emit_event:
             self.row_changed(path, itr)
+
+    def iter_rows(self, load_rows=False):
+        """Iterate over the rows of the model.
+
+        This will iterate using a depth-first algorithm. That means that,
+        on a hierarchy like this::
+
+            A
+              B
+                E
+              C
+                F
+                  G
+                  H
+              D
+
+        This would generate an iteration like::
+
+            [ A, B, E, C, F, G, H, D ]
+
+        :param bool load_rows: if we should load rows from the
+            datasource during the iteration. When using this, be sure
+            to use lazy iteration and stop when you found what you needed.
+        :returns: an iterator for the rows
+        :rtype: generator
+        """
+        def _iter_children_aux(parent):
+            for row in parent:
+                if load_rows:
+                    self._ensure_children_is_loaded(row)
+                yield row
+                for inner_row in _iter_children_aux(row):
+                    yield inner_row
+
+        for row in _iter_children_aux(self.rows):
+            yield row
+
+        if load_rows:
+            rows_len = len(self.rows)
+            while self.add_rows():
+                for row in _iter_children_aux(self.rows[rows_len:]):
+                    yield row
+                rows_len = len(self.rows)
+
+    def get_row_by_id(self, row_id, load_rows=False):
+        """Get a row given its id
+
+        Note that this will load the data from the source until the
+        row is found, meaning that everything will be loaded on the
+        worst case (i.e. the row is not present)
+
+        :param object row_id: the id of the row
+        :returns: the row or ``None`` if it wasn't found
+        :rtype: :class:`datagrid_gtk3.db.sqlite.Node`
+        """
+        if row_id in self.row_id_mapper:
+            return self.row_id_mapper[row_id]
+
+        for row in self.iter_rows(load_rows=load_rows):
+            # Although we could check row, trying self.row_id_mapper has a
+            # chance of needing less iterations (and thus, less loading from
+            # sqlite) since after loading all children of A, we can find them
+            # on self.row_id_mapper without having to load their children too
+            if row_id in self.row_id_mapper:
+                return self.row_id_mapper[row_id]
+
+    ###
+    # Private
+    ###
+
+    def _ensure_children_is_loaded(self, row):
+        if not row.is_children_loaded():
+            self.add_rows(row)
+
+    def _get_row_by_path(self, iter_):
+        def get_row_by_iter_aux(iter_aux, rows):
+            if len(iter_aux) == 1:
+                row = rows[iter_aux[0]]
+                self._ensure_children_is_loaded(row)
+                return row
+            return get_row_by_iter_aux(iter_aux[1:], rows[iter_aux[0]])
+
+        return get_row_by_iter_aux(iter_, self.rows)
 
     ###
     # Transforms
@@ -1494,7 +1913,6 @@ class DataGridModel(GenericTreeModel):
                 self._fallback_images[key] = fallback
             return fallback
 
-        is_image = False
         if value.startswith(self.IMAGE_PREFIX):
             # TODO: ensure performance not affected by scaling images
             #   with large recordsets, use file_ = 'icons/image.png' if so
@@ -1504,6 +1922,28 @@ class DataGridModel(GenericTreeModel):
             filename = None
 
         return self._get_pixbuf(filename)
+
+    def _bytes_transform(self, value):
+        """Transform bytes into a human-readable value.
+
+        :param int value: bytes to be humanized
+        :returns: the humanized bytes
+        :rtype: str
+        """
+        for suffix, factor in [
+                ('PB', 1 << 50),
+                ('TB', 1 << 40),
+                ('GB', 1 << 30),
+                ('MB', 1 << 20),
+                ('kB', 1 << 10),
+                ('B', 1)]:
+            if value >= factor:
+                value = '%.*f %s' % (1, float(value) / factor, suffix)
+                break
+        else:
+            raise ValueError('Unexpected value: %s' % (value, ))
+
+        return value
 
     def _datetime_transform(self, value):
         """Transform timestamps to ISO 8601 date format.
@@ -1596,7 +2036,7 @@ class DataGridModel(GenericTreeModel):
 
     def on_get_flags(self):
         """Return the GtkTreeModelFlags for this particular type of model."""
-        return Gtk.TreeModelFlags.LIST_ONLY
+        return Gtk.TreeModelFlags.ITERS_PERSIST
 
     def on_get_n_columns(self):
         """Return the number of columns in the model."""
@@ -1617,52 +2057,98 @@ class DataGridModel(GenericTreeModel):
 
     def on_get_path(self, rowref):
         """Return the tree path (a tuple of indices) for a particular node."""
-        return (rowref,)
+        return tuple(rowref)
 
     def on_get_iter(self, path):
         """Return the node corresponding to the given path (node is path)."""
-        if path[0] < len(self.rows):
-            return path[0]
-
-        return None
+        try:
+            # row and path are the same in this model. We just need
+            # to make sure that the iter is valid
+            self._get_row_by_path(path)
+        except IndexError:
+            return None
+        else:
+            return tuple(path)
 
     def on_get_value(self, rowref, column):
         """Return the value stored in a particular column for the node."""
         if self.visible_range:
-            visible = self.visible_range[0][0] <= rowref <= self.visible_range[1][0]
+            start = tuple(self.visible_range[0])
+            end = tuple(self.visible_range[1])
+            visible = start <= rowref <= end
         else:
             visible = True
 
-        raw = self.rows[rowref][column]
-        val = self.get_formatted_value(raw, column, visible=visible)
-        return val
+        row = self._get_row_by_path(rowref)
+        raw = row.data[column]
+        # Don't format value for id and parent columns. They are not displayed
+        # on the grid and we may need their full values to get their records
+        # (e.g. when the id is a string column)
+        if column in [self.id_column_idx, self.parent_column_idx]:
+            return raw
+        else:
+            return self.get_formatted_value(raw, column, visible=visible)
 
     def on_iter_next(self, rowref):
         """Return the next node at this level of the tree."""
-        if rowref + 1 < len(self.rows):
-            return rowref + 1
+        if rowref is None:
+            return None
 
-        return None
+        # root node
+        if len(rowref) == 1:
+            rows = self.rows
+            next_value = (rowref[0] + 1, )
+        else:
+            parentref = rowref[:-1]
+            rows = self._get_row_by_path(parentref)
+            next_value = parentref + (rowref[-1] + 1, )
+
+        if not next_value[-1] < len(rows):
+            return None
+
+        return next_value
 
     def on_iter_children(self, rowref):
         """Return the first child of this node."""
-        return 0
+        if rowref is None:
+            return (0, )
+
+        parent_row = self._get_row_by_path(rowref)
+        if not len(parent_row):
+            return None
+
+        return rowref + (0, )
 
     def on_iter_has_child(self, rowref):
         """Return true if this node has children."""
-        return False
+        return bool(self._get_row_by_path(rowref))
 
     def on_iter_n_children(self, rowref):
         """Return the number of children of this node."""
-        return len(self.rows)
+        if rowref is None:
+            return len(self.rows)
+
+        return len(self._get_row_by_path(rowref))
 
     def on_iter_nth_child(self, parent, n):
         """Return the nth child of this node."""
-        return n
+        if parent is None:
+            parent = ()
+            rows = self.rows
+        else:
+            rows = self._get_row_by_path(parent)
+
+        if not 0 <= n < len(rows):
+            return None
+
+        return parent + (n, )
 
     def on_iter_parent(self, child):
         """Return the parent of this node."""
-        return None
+        if len(child) == 1:
+            return None
+
+        return child[:-1]
 
     ###
     # END Required implementations for GenericTreeModel
