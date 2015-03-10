@@ -648,9 +648,8 @@ class DataGridController(object):
         else:
             raise AssertionError("Unrecognized option %r" % (new_view, ))
 
-        # We want flat for both flat view and icon
-        self.model.active_params['flat'] = new_view in [
-            OptionsPopup.VIEW_FLAT, OptionsPopup.VIEW_ICON]
+        # We want flat for flat view only
+        self.model.active_params['flat'] = new_view == OptionsPopup.VIEW_FLAT
 
         child = self.container.grid_scrolledwindow.get_child()
         self.container.grid_scrolledwindow.remove(child)
