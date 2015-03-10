@@ -490,7 +490,7 @@ class SQLiteDataSource(DataSource):
                             col_defined = True
                             try:
                                 expand = self.config[counter]['expand']
-                            except IndexError:
+                            except KeyError:
                                 # FIXME: Remove this except when all callsites
                                 # are migrated to pass expand on params
                                 expand = False
