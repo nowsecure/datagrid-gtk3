@@ -120,15 +120,18 @@ def bytes_transform(value):
     :returns: the humanized bytes
     :rtype: str
     """
+    if value is None:
+        return ''
+
     for suffix, factor in [
             ('PB', 1 << 50),
             ('TB', 1 << 40),
             ('GB', 1 << 30),
             ('MB', 1 << 20),
             ('kB', 1 << 10),
-            ('B', 1)]:
+            ('B', 0)]:
         if value >= factor:
-            value = '%.*f %s' % (1, float(value) / factor, suffix)
+            value = '%.*f %s' % (1, float(value) / max(factor, 1), suffix)
             break
     else:
         raise ValueError('Unexpected value: %s' % (value, ))
