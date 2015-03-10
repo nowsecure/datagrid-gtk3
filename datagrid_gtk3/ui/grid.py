@@ -1186,8 +1186,8 @@ class DataGridView(Gtk.TreeView):
             if not self.model.active_params.get('flat', False):
                 dont_display.add(self.model.data_source.FLAT_COLUMN)
 
-        samples = itertools.islice(
-            (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE)
+        samples = list(itertools.islice(
+            (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE))
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
             display = (self.model.display_columns is None
