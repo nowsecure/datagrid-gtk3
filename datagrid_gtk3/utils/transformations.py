@@ -38,11 +38,29 @@ def register_transformer(transformer_name, transformer):
     _transformers[transformer_name] = transformer
 
 
+def transformer(transformer_name):
+    """A decorator to easily register a decorator.
+
+    Use this like::
+
+        @transformer('transformer_name')
+        def transformer_func(value):
+            return do_something_with_value()
+
+    :param str transformer_name: the name to register the transformer
+    """
+    def _wrapper(f):
+        register_transformer(transformer_name, f)
+        return f
+    return _wrapper
+
+
 ###
 # Default transformers
 ###
 
 
+@transformer('string')
 def string_transform(value, max_length=None, decode_fallback=None):
     """String transformation.
 
@@ -78,9 +96,8 @@ def string_transform(value, max_length=None, decode_fallback=None):
     # an utf-8 encoded str or it won't be rendered in the treeview.
     return value.encode('utf-8')
 
-register_transformer('string', string_transform)
 
-
+@transformer('boolean')
 def boolean_transform(value):
     """Transform boolean values to a gtk stock image.
 
@@ -94,9 +111,8 @@ def boolean_transform(value):
     return img.render_icon(
         Gtk.STOCK_YES if value else Gtk.STOCK_CANCEL, Gtk.IconSize.MENU)
 
-register_transformer('boolean', boolean_transform)
 
-
+@transformer('bytes')
 def bytes_transform(value):
     """Transform bytes into a human-readable value.
 
@@ -119,9 +135,8 @@ def bytes_transform(value):
 
     return value
 
-register_transformer('bytes', bytes_transform)
 
-
+@transformer('datetime')
 def datetime_transform(value):
     """Transform timestamps to ISO 8601 date format.
 
@@ -136,9 +151,8 @@ def datetime_transform(value):
 
     return dt.isoformat()
 
-register_transformer('datetime', datetime_transform)
 
-
+@transformer('image')
 def image_transform(path, size=24, draw_border=False,
                     border_size=6, shadow_size=6, shadow_offset=2):
     """Render path into a pixbuf.
@@ -191,5 +205,3 @@ def image_transform(path, size=24, draw_border=False,
     pixbuf.copy_area(0, 0, width, height, square_pic, dest_x, dest_y)
 
     return square_pic
-
-register_transformer('image', image_transform)
