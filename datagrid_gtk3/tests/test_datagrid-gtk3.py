@@ -189,59 +189,46 @@ class DataGridModelTest(unittest.TestCase):
         self.datagrid_model = DataGridModel(
             mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
 
-    def test_datetime_transform_negative(self):
-        """Return an empty string when timestamp is -1."""
-        self.assertEqual(self.datagrid_model._datetime_transform(-1), '')
-
-    def test_datetime_transform_zero(self):
-        """Return valid datetime with valid timestamp input of 0."""
-        self.assertEqual(
-            self.datagrid_model._datetime_transform(0),
-            '1970-01-01T00:00:00')
-
-    def test_datetime_transform_invalid_to_big(self):
-        """Return input value with invalid datetime input over max value."""
-        self.assertEqual(
-            self.datagrid_model._datetime_transform(315532801000000000),
-            315532801000000000)
-
-    def test_datetime_transform_second_time(self):
+    def test_datetime_transform(self):
         """Return valid datetime with valid seconds input."""
         self.assertEqual(
-            self.datagrid_model._datetime_transform(1104537600),
+            self._transform('datetime', 0),
+            '1970-01-01T00:00:00')
+        self.assertEqual(
+            self._transform('datetime', 1104537600),
             '2005-01-01T00:00:00')
-
-    def test_datetime_transform_millisecond_time(self):
-        """Return valid datetime with valid milliseconds input."""
         self.assertEqual(
-            self.datagrid_model._datetime_transform(315532801000),
-            '1980-01-01T00:00:01')
-
-    def test_datetime_transform_microseconds_time(self):
-        """Return valid datetime with valid microseconds input."""
+            self._transform('datetime', -134843428),
+            '1965-09-23T07:29:32')
         self.assertEqual(
-            self.datagrid_model._datetime_transform(315532801000000),
-            '1980-01-01T00:00:01')
+            self._transform('datetime', -1), '1969-12-31T23:59:59')
+
+    def test_datetime_transform_invalid(self):
+        """Return the value itself when it could not be converted."""
+        self.assertEqual(
+            self._transform('datetime', 315532801000), 315532801000)
+        self.assertEqual(
+            self._transform('datetime', -315532801000), -315532801000)
 
     def test_bytes_transform(self):
         """Test bytes humanization."""
         self.assertEqual(
-            self.datagrid_model._bytes_transform(1),
+            self._transform('bytes', 1),
             '1.0 B')
         self.assertEqual(
-            self.datagrid_model._bytes_transform(50),
+            self._transform('bytes', 50),
             '50.0 B')
         self.assertEqual(
-            self.datagrid_model._bytes_transform(2348),
+            self._transform('bytes', 2348),
             '2.3 kB')
         self.assertEqual(
-            self.datagrid_model._bytes_transform(1420000),
+            self._transform('bytes', 1420000),
             '1.4 MB')
         self.assertEqual(
-            self.datagrid_model._bytes_transform(1420000328),
+            self._transform('bytes', 1420000328),
             '1.3 GB')
         self.assertEqual(
-            self.datagrid_model._bytes_transform(24200003283214),
+            self._transform('bytes', 24200003283214),
             '22.0 TB')
 
     @mock.patch('datagrid_gtk3.ui.grid.NO_IMAGE_PIXBUF.scale_simple')
@@ -252,9 +239,9 @@ class DataGridModelTest(unittest.TestCase):
         self.datagrid_model.image_max_size = 50
 
         self.assertEqual(
-            self.datagrid_model._image_transform(None), returned_value)
+            self._transform('image', None), returned_value)
         self.assertEqual(
-            self.datagrid_model._image_transform(None), returned_value)
+            self._transform('image', None), returned_value)
         # Even though we called _image_transform twice, the second one
         # was taken from the cache
         scale_simple.assert_called_once_with(
@@ -285,7 +272,7 @@ class DataGridModelTest(unittest.TestCase):
         with contextlib.nested(
                 mock.patch('datagrid_gtk3.utils.imageutils.add_drop_shadow'),
                 mock.patch('datagrid_gtk3.utils.imageutils.add_border'),
-                mock.patch('datagrid_gtk3.ui.grid.Image.open'),
+                mock.patch('datagrid_gtk3.utils.transformations.Image.open'),
                 mock.patch.object(image, 'thumbnail')) as (
                     add_drop_shadow, add_border, open_, thumbnail):
             add_border.side_effect = _add_border
@@ -293,7 +280,7 @@ class DataGridModelTest(unittest.TestCase):
 
             open_.return_value = image
             self.assertIsInstance(
-                self.datagrid_model._image_transform('file://xxx'),
+                self._transform('image', 'file://xxx'),
                 GdkPixbuf.Pixbuf)
 
             thumbnail.assert_called_once_with((123, 123), Image.BICUBIC)
@@ -317,17 +304,22 @@ class DataGridModelTest(unittest.TestCase):
         self.datagrid_model.image_draw_border = False
 
         with contextlib.nested(
-                mock.patch('datagrid_gtk3.ui.grid.Image.open'),
+                mock.patch('datagrid_gtk3.utils.transformations.Image.open'),
                 mock.patch.object(image, 'thumbnail')) as (open_, thumbnail):
             open_.return_value = image
             self.assertIsInstance(
-                self.datagrid_model._image_transform('file://xxx'),
+                self._transform('image', 'file://xxx'),
                 GdkPixbuf.Pixbuf)
 
             thumbnail.assert_called_once_with((123, 123), Image.BICUBIC)
             open_.assert_called_once_with('xxx')
             self.assertEqual(add_border.call_count, 0)
             self.assertEqual(add_drop_shadow.call_count, 0)
+
+    def _transform(self, transform_type, value):
+        self.datagrid_model.columns = [
+            {'name': transform_type, 'transform': transform_type}]
+        return self.datagrid_model.get_formatted_value(value, 0)
 
 
 if __name__ == '__main__':
