@@ -27,7 +27,7 @@ def create_db():
             with closing(conn.cursor()) as cursor:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS %s
-                    (__viaextract_id INTEGER,
+                    (__id INTEGER PRIMARY KEY,
                      first_name TEXT,
                      last_name TEXT,
                      age INTEGER,
@@ -38,7 +38,7 @@ def create_db():
                 for i in TEST_DATA:
                     insert_sql = """
                         INSERT INTO %s
-                        (__viaextract_id,
+                        (__id,
                          first_name,
                          last_name,
                          age,
