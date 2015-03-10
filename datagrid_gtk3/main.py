@@ -25,7 +25,6 @@ _EXAMPLE_DATABASES = {
     'album': None,
     'artist': None,
     'employee': [
-        ('EmployeeId', (long, None)),
         ('LastName', (str, None)),
         ('FirstName', (str, None)),
         ('Title', (str, None)),

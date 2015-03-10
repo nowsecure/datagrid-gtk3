@@ -104,6 +104,10 @@ class SQLiteDataSource(DataSource):
         for col in self.columns:
             self.table.append_column(column(col['name']))
 
+        self.selected_table = table_('_selected_columns')
+        for col in ['tablename', 'columns']:
+            self.selected_table.append_column(column(col))
+
     ###
     # Public
     ###
@@ -270,20 +274,21 @@ class SQLiteDataSource(DataSource):
         :returns: list of column names
         :rtype: list or None
         """
-        table = '_selected_columns'
-        where = self._get_where_clause(
-            {'tablename': {'param': self.table, 'operator': '='}})
+        where = self.selected_table.columns['tablename'] == self.table.name
+        columns = [self.selected_table.columns['columns']]
 
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = sqlite3.Row  # Access columns by name
             try:
-                result = list(self.select(conn, table, where=where))
+                result = list(
+                    self.select(conn, self.selected_table,
+                                columns, where=where))
             except sqlite3.OperationalError as err:
                 # FIXME: When will this happen?
                 logger.warn(str(err))
                 return
 
-        return result[0][1].split(',')
+        return result[0][0].split(',')
         # ^^ 2nd column of returned row; first column is table name
 
     def update_selected_columns(self, columns):
@@ -328,7 +333,7 @@ class SQLiteDataSource(DataSource):
                 cursor.execute(update_sql, params)
                 conn.commit()
 
-    def select(self, conn, table, columns, where=None,
+    def select(self, conn, table, columns=None, where=None,
                order_by=None, limit=None, offset=None):
         """Select records from given db and table given columns and criteria.
 
@@ -337,6 +342,7 @@ class SQLiteDataSource(DataSource):
         :param list columns: list of columns to SELECT from
         :param dict where: dict of parameters to build ``WHERE`` clause
         """
+        columns = columns or table.columns
         sql = select(
             columns=columns, whereclause=where,
             from_obj=[table], order_by=order_by)
@@ -443,6 +449,18 @@ class SQLiteDataSource(DataSource):
                 table_info_query = 'PRAGMA table_info(%s)' % self.table.name
                 cursor.execute(table_info_query)
                 rows = cursor.fetchall()
+
+                # FIXME: If the idcolumn doesn't match any column, use the
+                # first primary key we can find. This actually happen on the
+                # examples database.
+                if not any(row[1] == self.ID_COLUMN for row in rows):
+                    for row in rows:
+                        if row[5]:  # primary key
+                            self.ID_COLUMN = row[1]
+                            break
+                    else:
+                        raise ValueError("No id column found.")
+
                 has_selected = False
                 counter = 0
                 for i, row in enumerate(rows):
@@ -470,7 +488,6 @@ class SQLiteDataSource(DataSource):
                         'display': display_name,
                         'type': data_type,
                         'transform': transform,
-                        'primary_key': bool(row[5]),
                         'expand': expand,
                     }
 
@@ -498,7 +515,6 @@ class SQLiteDataSource(DataSource):
                         'display': '__selected',
                         'type': int,
                         'transform': 'boolean',
-                        'primary_key': False,
                     }
                     cols.insert(0, col_dict)
                     has_selected = True
@@ -511,18 +527,6 @@ class SQLiteDataSource(DataSource):
                     self.parent_column_idx += 1
                 if has_selected and self.flat_column_idx is not None:
                     self.flat_column_idx += 1
-
-                # FIXME: If the idcolumn doesn't match any column, use the
-                # first primary key we can find. This actually happen on the
-                # examples database.
-                if self.id_column_idx is None:
-                    for i, col_dict in enumerate(cols):
-                        if col_dict['primary_key']:
-                            self.ID_COLUMN = col_dict['name']
-                            self.id_column_idx = i
-                            break
-                    else:
-                        raise ValueError("No id column found.")
 
         return cols
 
