@@ -15,7 +15,7 @@ from gi.repository import (
 from PIL import Image
 import mock
 
-from datagrid_gtk3.db import sqlite
+from datagrid_gtk3.db.sqlite import SQLiteDataSource
 from datagrid_gtk3.tests.data import create_db
 from datagrid_gtk3.ui.grid import (
     DataGridContainer,
@@ -27,10 +27,6 @@ from datagrid_gtk3.ui.grid import (
     default_get_full_path,
 )
 from datagrid_gtk3.utils import imageutils
-
-
-class SQLiteDataSource(sqlite.SQLiteDataSource):
-    ID_COLUMN = '__viaextract_id'
 
 
 class DataGridControllerTest(unittest.TestCase):
