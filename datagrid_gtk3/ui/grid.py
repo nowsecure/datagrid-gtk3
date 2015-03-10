@@ -1573,9 +1573,9 @@ class DataGridModel(GenericTreeModel):
     MAX_TIMESTAMP = 2147485547  # 2038
 
     # iOS timestamps start from 2001-01-01
-    IOS_TIMESTAMP_DIFF = int(1000 * (
+    IOS_TIMESTAMP_DIFF = (
         datetime(2001, 1, 1) - datetime(1970, 1, 1)
-    ).total_seconds())
+    ).total_seconds()
 
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
