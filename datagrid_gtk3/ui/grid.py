@@ -1213,6 +1213,7 @@ class DataGridView(Gtk.TreeView):
                 col.set_fixed_width(
                     self._get_best_column_width(column_index, samples))
                 col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+                col.set_expand(column['expand'])
                 if item == self.active_sort_column:
                     col.set_sort_indicator(True)
                     col.set_sort_order(self.active_sort_column_order)

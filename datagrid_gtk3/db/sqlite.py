@@ -446,24 +446,32 @@ class SQLiteDataSource(DataSource):
                 has_selected = False
                 counter = 0
                 for i, row in enumerate(rows):
-                    col_defined = False
                     col_name = row[1]
-                    if self.config is not None:
-                        if col_name not in [self.ID_COLUMN, '__selected']:
-                            display_name, (data_type, transform) = \
-                                self.config[counter]
-                            col_defined = True
-                            counter += 1
-                    if not col_defined:
+                    if (self.config is not None and
+                            col_name not in [self.ID_COLUMN, '__selected']):
+                        display_name, params = self.config[counter]
+                        data_type = params[0]
+                        transform = params[1]
+                        try:
+                            expand = params[2]
+                        except IndexError:
+                            # FIXME: Remove this except when all callsites
+                            # are migrated to pass expand on params
+                            expand = False
+                        counter += 1
+                    else:
                         display_name = row[1]
                         data_type = self.SQLITE_PY_TYPES.get(row[2].upper(), str)
                         transform = None  # TODO: eg. buffer
+                        expand = False
+
                     col_dict = {
                         'name': col_name,
                         'display': display_name,
                         'type': data_type,
                         'transform': transform,
                         'primary_key': bool(row[5]),
+                        'expand': expand,
                     }
 
                     if col_name == self.ID_COLUMN:
@@ -479,6 +487,7 @@ class SQLiteDataSource(DataSource):
                         has_selected = True
                     else:
                         cols.append(col_dict)
+
                 if self._ensure_selected_column and not has_selected:
                     alter_sql = 'ALTER TABLE %s ADD __selected INTEGER' % (
                         self.update_table)
