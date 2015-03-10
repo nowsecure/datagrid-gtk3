@@ -465,6 +465,8 @@ class SQLiteDataSource(DataSource):
                 counter = 0
                 for i, row in enumerate(rows):
                     col_name = row[1]
+                    # FIXME: config should be a dict, mapping the column name
+                    # to the config. This is very error-prone.
                     if (self.config is not None and
                             col_name not in [self.ID_COLUMN, '__selected']):
                         display_name, params = self.config[counter]
