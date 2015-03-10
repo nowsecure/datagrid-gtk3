@@ -306,25 +306,25 @@ class SQLiteDataSource(DataSource):
                     update_sql = (
                         'DELETE FROM _selected_columns WHERE tablename=?'
                     )
-                    params = (self.table,)
+                    params = (self.table.name,)
                 else:
                     select_sql = (
                         'SELECT * FROM _selected_columns WHERE tablename=?'
                     )
-                    cursor.execute(select_sql, (self.table,))
+                    cursor.execute(select_sql, (self.table.name, ))
                     row = cursor.fetchone()
                     if not row:
                         update_sql = (
                             'INSERT INTO _selected_columns '
                             '(tablename, columns) VALUES (?, ?)'
                         )
-                        params = (self.table, ','.join(columns))
+                        params = (self.table.name, ','.join(columns))
                     else:
                         update_sql = (
                             'UPDATE _selected_columns '
                             'SET columns=? WHERE tablename=?'
                         )
-                        params = (','.join(columns), self.table)
+                        params = (','.join(columns), self.table.name)
                 cursor.execute(update_sql, params)
                 conn.commit()
 
