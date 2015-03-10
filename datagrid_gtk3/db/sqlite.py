@@ -178,7 +178,7 @@ class SQLiteDataSource(DataSource):
         if flat:
             flat_where = operator.ne(
                 self.table.columns[self.FLAT_COLUMN], None)
-            where = and_(where, flat_where) if where is not None else flat_where
+            where = and_(where, flat_where) if where is not None else flat_where  # noqa
 
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = lambda cursor, row: list(row)
@@ -488,6 +488,12 @@ class SQLiteDataSource(DataSource):
                             else:
                                 transform = None
                             col_defined = True
+                            try:
+                                expand = self.config[counter]['expand']
+                            except IndexError:
+                                # FIXME: Remove this except when all callsites
+                                # are migrated to pass expand on params
+                                expand = False
                             counter += 1
                     if not col_defined:
                         display_name = row[1]
