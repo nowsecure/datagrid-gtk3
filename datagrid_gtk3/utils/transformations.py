@@ -156,13 +156,16 @@ def datetime_transform(value):
 
 
 @transformer('image')
-def image_transform(path, size=24, draw_border=False,
+def image_transform(path, size=24, fill_image=True, draw_border=False,
                     border_size=6, shadow_size=6, shadow_offset=2):
     """Render path into a pixbuf.
 
     :param str path: the image path or `None` to use a fallback image
     :param int size: the size to resize the image. It will be resized
         to fit a square of (size, size)
+    :param bool fill_image: if we should fill the image with a transparent
+        background to make a smaller image be at least a square of
+        (size, size), with the real image at the center.
     :param bool draw_border: if we should add a border on the image
     :param border_size: the size of the border (if drawing border)
     :param shadow_size: the size of the drop shadow (if drawing border)
@@ -195,6 +198,9 @@ def image_transform(path, size=24, draw_border=False,
     pixbuf = imageutils.image2pixbuf(image)
     width = pixbuf.get_width()
     height = pixbuf.get_height()
+
+    if not fill_image:
+        return pixbuf
 
     # Make sure the image is on the center of the image_max_size
     square_pic = GdkPixbuf.Pixbuf.new(
