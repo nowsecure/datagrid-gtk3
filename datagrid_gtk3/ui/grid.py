@@ -1757,15 +1757,14 @@ class DataGridModel(GenericTreeModel):
             else:
                 return ''
 
-        else:
-            # If no transformation is required, at least convert the value to
-            # str as required by CellRendererText
-            value = str(value) if value is not None else ''
-
         # At the end, if value is unicode, it needs to be converted to
         # an utf-8 encoded str or it won't be rendered in the treeview.
         if isinstance(value, unicode):
             value = value.encode('utf-8')
+        else:
+            # If no transformation is required, at least convert the value to
+            # str as required by CellRendererText
+            value = str(value) if value is not None else ''
 
         return value
 
