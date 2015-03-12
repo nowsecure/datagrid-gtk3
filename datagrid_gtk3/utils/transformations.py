@@ -202,6 +202,7 @@ def timestamp_transform(value, date_only=False):
     return dt.isoformat()
 
 
+@transformer('timestamp_ms')
 @transformer('timestamp_unix_ms')
 def timestamp_ms_transform(value):
     """Transform timestamp in miliseconds to ISO 8601 date format.
@@ -213,6 +214,7 @@ def timestamp_ms_transform(value):
     return timestamp_transform(value / 10 ** 3)
 
 
+@transformer('timestamp_Ms')
 @transformer('timestamp_unix_Ms')
 def timestamp_Ms_transform(value):
     """Transform timestamp in microseconds to ISO 8601 date format.
@@ -224,6 +226,7 @@ def timestamp_Ms_transform(value):
     return timestamp_transform(value / 10 ** 6)
 
 
+@transformer('timestamp_ios')
 @transformer('timestamp_apple')
 def timestamp_apple_transform(value):
     """Transform apple timestamp to ISO 8601 date format.
