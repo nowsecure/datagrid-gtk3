@@ -81,6 +81,15 @@ class SQLiteDataSource(DataSource):
         'BLOB': str
     }
 
+    STRING_PY_TYPES = {  # NOTE: ideally could use eval, but unsafe
+        'int': int,
+        'long': long,
+        'str': str,
+        'float': float,
+        'buffer': buffer
+    }
+    ID_COLUMN = 'rowid'
+
     def __init__(self, db_file, table=None, update_table=None, config=None,
                  ensure_selected_column=True, display_all=False, query=None):
         """Process database column info."""
@@ -167,8 +176,9 @@ class SQLiteDataSource(DataSource):
         # Flat
         flat = params.get('flat', False)
         if flat:
-            flat_where = operator.ne(self.table.columns[self.FLAT_COLUMN], None)
-            where = and_(where, flat_where) if where is not None else flat_where
+            flat_where = operator.ne(
+                self.table.columns[self.FLAT_COLUMN], None)
+            where = and_(where, flat_where) if where is not None else flat_where  # noqa
 
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = lambda cursor, row: list(row)
@@ -464,24 +474,31 @@ class SQLiteDataSource(DataSource):
                 has_selected = False
                 counter = 0
                 for i, row in enumerate(rows):
+                    col_defined = False
                     col_name = row[1]
-                    # FIXME: config should be a dict, mapping the column name
-                    # to the config. This is very error-prone.
-                    if (self.config is not None and
-                            col_name not in [self.ID_COLUMN, '__selected']):
-                        display_name, params = self.config[counter]
-                        data_type = params[0]
-                        transform = params[1]
-                        try:
-                            expand = params[2]
-                        except IndexError:
-                            # FIXME: Remove this except when all callsites
-                            # are migrated to pass expand on params
-                            expand = False
-                        counter += 1
-                    else:
+                    if self.config is not None:
+                        if col_name not in [self.ID_COLUMN, '__selected']:
+                            display_name = self.config[counter]['alias'] if (
+                                'alias' in self.config[counter]) else (
+                                self.config[counter]['column'])
+                            data_type = self.STRING_PY_TYPES[
+                                self.config[counter]['type']]
+                            if 'encoding' in self.config[counter]:
+                                transform = self.config[counter]['encoding']
+                            else:
+                                transform = None
+                            col_defined = True
+                            try:
+                                expand = self.config[counter]['expand']
+                            except KeyError:
+                                # FIXME: Remove this except when all callsites
+                                # are migrated to pass expand on params
+                                expand = False
+                            counter += 1
+                    if not col_defined:
                         display_name = row[1]
-                        data_type = self.SQLITE_PY_TYPES.get(row[2].upper(), str)
+                        data_type = self.SQLITE_PY_TYPES.get(
+                            row[2].upper(), str)
                         transform = None  # TODO: eg. buffer
                         expand = False
 

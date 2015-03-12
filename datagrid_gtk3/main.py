@@ -25,24 +25,72 @@ _EXAMPLE_DATABASES = {
     'album': None,
     'artist': None,
     'employee': [
-        ('LastName', (str, None)),
-        ('FirstName', (str, None)),
-        ('Title', (str, None)),
-        ('ReportsTo', (long, None)),
-        ('BirthDate', (long, 'datetime')),
-        ('HireDate', (str, None)),
-        ('Address', (str, None)),
-        ('City', (str, None)),
-        ('State', (str, None)),
-        ('Country', (str, None)),
-        ('PostalCode', (str, None)),
-        ('Phone', (str, None)),
-        ('Fax', (str, None)),
-        ('Email', (str, None)),
+        {
+            'column': 'EmployeeId',
+            'type': 'long',
+        },
+        {
+            'column': 'LastName',
+            'type': 'str',
+        },
+        {
+            'column': 'FirstName',
+            'type': 'str',
+        },
+        {
+            'column': 'Title',
+            'type': 'str',
+        },
+        {
+            'column': 'ReportsTo',
+            'type': 'long',
+        },
+        {
+            'column': 'BirthDate',
+            'type': 'long',
+            'encoding': 'datetime'
+        },
+        {
+            'column': 'HireDate',
+            'type': 'str'
+        },
+        {
+            'column': 'Address',
+            'type': 'str'
+        },
+        {
+            'column': 'City',
+            'type': 'str'
+        },
+        {
+            'column': 'State',
+            'type': 'str'
+        },
+        {
+            'column': 'Country',
+            'type': 'str'
+        },
+        {
+            'column': 'PostalCode',
+            'type': 'str'
+        },
+        {
+            'column': 'Phone',
+            'type': 'str'
+        },
+        {
+            'column': 'Fax',
+            'type': 'str'
+        },
+        {
+            'column': 'Email',
+            'type': 'str'
+        }
     ],
     'genre': None,
     'track': None,
 }
+
 
 def setup_logging():
     """Sets up logging to std out."""

@@ -1,6 +1,5 @@
 """Module containing classes for datagrid MVC implementation."""
 
-import contextlib
 import base64
 import os
 from datetime import datetime
@@ -397,7 +396,8 @@ class DataGridController(object):
 
     def __init__(self, container, data_source, selected_record_callback=None,
                  activated_icon_callback=None, activated_row_callback=None,
-                 has_checkboxes=True, decode_fallback=None, get_full_path=None):
+                 has_checkboxes=True, decode_fallback=None,
+                 get_full_path=None):
         """Setup UI controls and load initial data view."""
         if decode_fallback is None:
             decode_fallback = default_decode_fallback
@@ -708,7 +708,8 @@ class DataGridController(object):
         row_iterator = view.model.get_iter(path)
         record = self.model.data_source.get_single_record(
             self.model[row_iterator][self.model.id_column_idx])
-        # Why is the pixbuf column on view.pixbuf_column -1 position in this rec?
+        # Why is the pixbuf column on view.pixbuf_column -1 position in
+        # this rec?
         self.activated_icon_callback(record, view.pixbuf_column - 1)
 
     def on_treeview_row_activated(self, view, path, column):
@@ -1417,7 +1418,7 @@ class DataGridIconView(Gtk.IconView):
     has_checkboxes = GObject.property(type=bool, default=True)
 
     def __init__(self, model, **kwargs):
-        if not 'cell_area' in kwargs:
+        if 'cell_area' not in kwargs:
             kwargs['cell_area'] = DataGridCellAreaRenderer()
 
         super(DataGridIconView, self).__init__(**kwargs)
@@ -1571,6 +1572,11 @@ class DataGridModel(GenericTreeModel):
     MIN_TIMESTAMP = 0  # 1970
     MAX_TIMESTAMP = 2147485547  # 2038
 
+    # iOS timestamps start from 2001-01-01
+    IOS_TIMESTAMP_DIFF = (
+        datetime(2001, 1, 1) - datetime(1970, 1, 1)
+    ).total_seconds()
+
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
         """Set up model."""
@@ -1587,7 +1593,7 @@ class DataGridModel(GenericTreeModel):
         self.datetime_columns = []
         self.column_types = []
         for column in self.columns:
-            if column['transform'] == 'datetime':
+            if column['transform'] in ('timestamp', 'ios_timestamp'):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
         self.display_columns = None
@@ -1719,36 +1725,46 @@ class DataGridModel(GenericTreeModel):
                     value = ' '.join(value)
             else:
                 value = ''
+
         elif col_dict['transform'] == 'boolean':
             if col_dict['name'] != '__selected':
                 value = self._boolean_transform(value)
             else:
                 if value == 1:
                     return True
-
                 # 0 or null
                 return False
+
         elif col_dict['transform'] == 'image':
             value = self._image_transform(value, visible=visible)
-        elif col_dict['transform'] == 'datetime':
+
+        elif col_dict['transform'] == 'timestamp':
             if value:
                 value = self._datetime_transform(value)
             else:
                 return ''
+
+        elif col_dict['transform'] == 'ios_timestamp':
+            if value:
+                value += self.IOS_TIMESTAMP_DIFF
+                value = self._datetime_transform(value)
+            else:
+                return None
+
         elif col_dict['transform'] == 'bytes':
             if value:
                 value = self._bytes_transform(value)
             else:
                 return ''
-        else:
-            # If no transformation is required, at least convert the value to
-            # str as required by CellRendererText
-            value = str(value) if value is not None else ''
 
         # At the end, if value is unicode, it needs to be converted to
         # an utf-8 encoded str or it won't be rendered in the treeview.
         if isinstance(value, unicode):
             value = value.encode('utf-8')
+        else:
+            # If no transformation is required, at least convert the value to
+            # str as required by CellRendererText
+            value = str(value) if value is not None else ''
 
         return value
 
@@ -1896,7 +1912,6 @@ class DataGridModel(GenericTreeModel):
                 self._fallback_images[key] = fallback
             return fallback
 
-        is_image = False
         if value.startswith(self.IMAGE_PREFIX):
             # TODO: ensure performance not affected by scaling images
             #   with large recordsets, use file_ = 'icons/image.png' if so
