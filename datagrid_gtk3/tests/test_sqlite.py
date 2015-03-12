@@ -19,11 +19,11 @@ class SQLiteDataSourceTest(unittest.TestCase):
             self.db_file,
             table=self.table,
             config=[
-                ('First name', (str, None)),
-                ('Last name', (str, None)),
-                ('Age', (int, None)),
-                ('Start', (int, 'datetime')),
-                ('Image', (str, 'image')),
+                {'column': 'First name', 'type': 'str'},
+                {'column': 'Last name', 'type': 'str'},
+                {'column': 'Age', 'type': 'int'},
+                {'column': 'Start', 'type': 'int', 'encoding': 'timestamp'},
+                {'column': 'Image', 'type': 'int', 'encoding': 'image'},
             ],
         )
         self.datasource.MAX_RECS = 2
