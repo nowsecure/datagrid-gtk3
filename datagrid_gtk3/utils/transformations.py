@@ -15,6 +15,21 @@ _transformers = {}
 _MEDIA_FILES = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), os.pardir, "data", "media")
 
+# Total seconds in a day
+_SECONDS_IN_A_DAY = int(
+    (datetime.datetime(1970, 1, 2) -
+     datetime.datetime(1970, 1, 1)).total_seconds())
+# iOS timestamps start from 2001-01-01
+_APPLE_TIMESTAMP_OFFSET = int(
+    (datetime.datetime(2001, 1, 1) -
+     datetime.datetime(1970, 1, 1)).total_seconds())
+# Webkit timestamps start at 1601-01-01
+_WEBKIT_TIMESTAMP_OFFSET = int(
+    (datetime.datetime(1970, 1, 1) -
+     datetime.datetime(1601, 1, 1)).total_seconds())
+# Unix epoch zero-point (1970-01-01) in Julian days
+_UNIX_ZERO_POINT_IN_JULIAN_DAYS = 2440587.5
+
 __all__ = ('get_transformer', 'register_transformer')
 
 
@@ -141,18 +156,174 @@ def bytes_transform(value):
 
 @transformer('datetime')
 def datetime_transform(value):
-    """Transform timestamps to ISO 8601 date format.
+    """Transform datetime to ISO 8601 date format.
 
-    :param int value: Unix timestamp
-    :return: the newly created datetime object
-    :rtype: datetime.datetime
+    :param value: the datatime object
+    :type value: datetime.datetime
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
     """
+    # FIXME: Fix all places using 'datetime' for timestamp
+    # (either as an int/long or as a convertable str)
+    try:
+        long_value = long(value)
+    except ValueError:
+        pass
+    else:
+        return timestamp_transform(long_value)
+
     try:
         dt = datetime.datetime.utcfromtimestamp(value)
     except ValueError:
         return value
 
     return dt.isoformat()
+
+
+@transformer('timestamp')
+@transformer('timestamp_unix')
+def timestamp_transform(value, date_only=False):
+    """Transform timestamp to ISO 8601 date format.
+
+    :param int value: Unix timestamp
+    :param bool date_only: if we should format only the date part,
+         ignoring the time
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
+    """
+    try:
+        dt = datetime.datetime.utcfromtimestamp(value)
+    except ValueError:
+        return value
+
+    if date_only:
+        dt = dt.date()
+
+    return dt.isoformat()
+
+
+@transformer('timestamp_unix_ms')
+def timestamp_ms_transform(value):
+    """Transform timestamp in miliseconds to ISO 8601 date format.
+
+    :param int value: Unix timestamp in miliseconds
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_transform(value / 10 ** 3)
+
+
+@transformer('timestamp_unix_Ms')
+def timestamp_Ms_transform(value):
+    """Transform timestamp in microseconds to ISO 8601 date format.
+
+    :param int value: Unix timestamp in microseconds
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_transform(value / 10 ** 6)
+
+
+@transformer('timestamp_apple')
+def timestamp_apple_transform(value):
+    """Transform apple timestamp to ISO 8601 date format.
+
+    Apple timestamps (e.g. those used on iOS) start at 2001-01-01.
+
+    :param int value: apple timestamp
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_transform(value + _APPLE_TIMESTAMP_OFFSET)
+
+
+@transformer('timestamp_webkit')
+def timestamp_webkit_transform(value):
+    """Transform WebKit timestamp to ISO 8601 date format.
+
+    WebKit timestamps are expressed in microseconds and
+    start at 1601-01-01.
+
+    :param int value: WebKit timestamp
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_transform(value / 10 ** 6 - _WEBKIT_TIMESTAMP_OFFSET)
+
+
+@transformer('timestamp_julian')
+def timestamp_julian_transform(value, date_only=False):
+    """Transform Julian timestamp to ISO 8601 date format.
+
+    Julian timestamps are the number of days that has passed since
+    noon Universal Time on January 1, 4713 BCE.
+
+    :param int value: Julian timestamp in microseconds
+    :param bool date_only: if we should format only the date part,
+         ignoring the time
+    :return: the datetime represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_transform(
+        (value - _UNIX_ZERO_POINT_IN_JULIAN_DAYS) * _SECONDS_IN_A_DAY,
+        date_only=date_only)
+
+
+@transformer('timestamp_julian_date')
+def timestamp_julian_date_transform(value):
+    """Transform julian timestamp to ISO 8601 date format.
+
+    Julian timestamps are the number of days that has passed since
+    noon Universal Time on January 1, 4713 BCE.
+
+    :param int value: Julian timestamp
+    :return: the date represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_julian_transform(value, date_only=True)
+
+
+@transformer('timestamp_midnight')
+def timestamp_midnight_transform(value):
+    """Transform midnight timestamp to ISO 8601 time format.
+
+    Midnight timestamp is the count in seconds of the time thas
+    has passed since midnight.
+
+    :param int value: midnight timestamp in seconds
+    :return: the time represented in ISO 8601 format
+    :rtype: str
+    """
+    dt = datetime.datetime.min + datetime.timedelta(0, value)
+    return dt.time().isoformat()
+
+
+@transformer('timestamp_midnight_ms')
+def timestamp_midnight_ms_transform(value):
+    """Transform midnight timestamp in miliseconds to ISO 8601 time format.
+
+    Midnight timestamp is the count in seconds of the time thas
+    has passed since midnight.
+
+    :param int value: midnight timestamp in miliseconds
+    :return: the time represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_midnight_transform(value / 10 ** 3)
+
+
+@transformer('timestamp_midnight_Ms')
+def timestamp_midnight_Ms_transform(value):
+    """Transform midnight timestamp in microsecond to ISO 8601 time format.
+
+    Midnight timestamp is the count in seconds of the time thas
+    has passed since midnight.
+
+    :param int value: midnight timestamp in microseconds
+    :return: the time represented in ISO 8601 format
+    :rtype: str
+    """
+    return timestamp_midnight_transform(value / 10 ** 6)
 
 
 @transformer('image')
