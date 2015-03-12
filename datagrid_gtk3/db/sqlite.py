@@ -476,25 +476,16 @@ class SQLiteDataSource(DataSource):
                 for i, row in enumerate(rows):
                     col_defined = False
                     col_name = row[1]
-                    if self.config is not None:
-                        if col_name not in [self.ID_COLUMN, '__selected']:
-                            display_name = self.config[counter]['alias'] if (
-                                'alias' in self.config[counter]) else (
-                                self.config[counter]['column'])
-                            data_type = self.STRING_PY_TYPES[
-                                self.config[counter]['type']]
-                            if 'encoding' in self.config[counter]:
-                                transform = self.config[counter]['encoding']
-                            else:
-                                transform = None
-                            col_defined = True
-                            try:
-                                expand = self.config[counter]['expand']
-                            except KeyError:
-                                # FIXME: Remove this except when all callsites
-                                # are migrated to pass expand on params
-                                expand = False
-                            counter += 1
+                    if self.config is not None and (
+                            col_name not in [self.ID_COLUMN, '__selected']):
+                        display_name = self.config[counter].get(
+                            'alias', self.config.counter['column'])
+                        data_type = self.STRING_PY_TYPES[
+                            self.config[counter]['type']]
+                        transform = self.config[counter].get('encoding', None)
+                        col_defined = True
+                        expand = self.config[counter].get('expand', False)
+                        counter += 1
                     if not col_defined:
                         display_name = row[1]
                         data_type = self.SQLITE_PY_TYPES.get(
