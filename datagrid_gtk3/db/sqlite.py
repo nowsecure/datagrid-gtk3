@@ -479,7 +479,7 @@ class SQLiteDataSource(DataSource):
                     if self.config is not None and (
                             col_name not in [self.ID_COLUMN, '__selected']):
                         display_name = self.config[counter].get(
-                            'alias', self.config.counter['column'])
+                            'alias', self.config[counter]['column'])
                         data_type = self.STRING_PY_TYPES[
                             self.config[counter]['type']]
                         transform = self.config[counter].get('encoding', None)
