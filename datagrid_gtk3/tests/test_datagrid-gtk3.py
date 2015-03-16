@@ -449,7 +449,10 @@ class DataGridModelTest(unittest.TestCase):
 
             thumbnail.assert_called_once_with((123, 123), Image.BICUBIC)
             open_.assert_called_once_with('xxx')
-            self.assertEqual(add_border.call_count, 0)
+            # This is because of a PIL issue. See
+            # datagrid_gtk3.utils.transformations.image_transform for more
+            # details
+            self.assertEqual(add_border.call_count, 1)
             self.assertEqual(add_drop_shadow.call_count, 0)
 
     def _transform(self, transform_type, value):

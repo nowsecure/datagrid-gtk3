@@ -416,6 +416,14 @@ def image_transform(path, size=24, fill_image=True, draw_border=False,
         size += border_size * 2
         size += shadow_size * 2
         size += shadow_offset
+    else:
+        # FIXME: There's a bug on PIL where image.thumbnail modifications will
+        # be lost for some images when saving it the way we do on image2pixbuf
+        # (even image.copy().size != image.size when it was resized).
+        # Adding a border of size 0 will make it at least be pasted to a new
+        # image (which didn't have its thumbnail method called), working around
+        # this issue.
+        image = imageutils.add_border(image, 0)
 
     pixbuf = imageutils.image2pixbuf(image)
     width = pixbuf.get_width()
