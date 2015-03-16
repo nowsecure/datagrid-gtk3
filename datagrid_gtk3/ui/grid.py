@@ -1446,6 +1446,12 @@ class DataGridIconView(Gtk.IconView):
         self.model.refresh()
         self.set_model(self.model)
 
+        if self.model.flat_column_idx is not None:
+            # When defining a text column, we need to set a max width or
+            # it will expand the rows to fit the longest string.
+            self.set_item_width(100)
+            self.set_text_column(self.model.flat_column_idx)
+
         for column_index, column in enumerate(self.model.columns):
             # FIXME: Can we have more than one column with image transform?
             if column['transform'] == 'image':
