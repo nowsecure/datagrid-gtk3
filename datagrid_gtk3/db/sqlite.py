@@ -35,8 +35,6 @@ _OPERATOR_MAPPER = {
     '!=': operator.ne,
     '<': operator.lt,
     '<=': operator.le,
-    '<': operator.lt,
-    '<=': operator.le,
     '>': operator.gt,
     '>=': operator.ge,
 }
@@ -109,7 +107,7 @@ class SQLiteDataSource(DataSource):
         else:
             self.update_table = table
         self.config = config
-        self.columns = self._get_columns()
+        self.columns = self.get_columns()
         for col in self.columns:
             self.table.append_column(column(col['name']))
 
@@ -431,10 +429,10 @@ class SQLiteDataSource(DataSource):
         if self.query:
             # create a temporary view for collecting column info
             cursor.execute('CREATE TEMP VIEW IF NOT EXISTS %s AS %s' % (
-                self.table, self.query
+                self.table.name, self.query
             ))
 
-    def _get_columns(self):
+    def get_columns(self):
         """Return a list of column information dicts.
 
         Queries either the database ``PRAGMA`` for column information or
@@ -469,7 +467,9 @@ class SQLiteDataSource(DataSource):
                             self.ID_COLUMN = row[1]
                             break
                     else:
-                        raise ValueError("No id column found.")
+                        if self._ensure_selected_column:
+                            # ID column is necessary row selection
+                            raise ValueError("No id column found.")
 
                 has_selected = False
                 counter = 0

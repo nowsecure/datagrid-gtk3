@@ -3,7 +3,7 @@ import os
 import sqlite3
 import unittest
 
-from datagrid_gtk3.tests.data import create_db
+from datagrid_gtk3.tests.data import create_db, TEST_DATA
 from datagrid_gtk3.db.sqlite import SQLiteDataSource
 
 
@@ -98,6 +98,19 @@ class SQLiteDataSourceTest(unittest.TestCase):
         with contextlib.closing(sqlite3.connect(db_file)) as conn:
             results = list(self.datasource.select(conn, self.datasource.table))
         self.assertEqual(len(results), 3)
+
+    def test_explicit_query(self):
+        """Test using an explicit query for the data source."""
+        # Important to not ensure "selected" column if there is no primary
+        # key returned by the query.
+        datasource = SQLiteDataSource(
+            self.db_file, query='SELECT first_name, age FROM people',
+            ensure_selected_column=False
+        )
+        rows = datasource.load()
+        data = {tuple(row.data) for row in rows}
+        reference_data = {(record[1], record[3]) for record in TEST_DATA}
+        self.assertEqual(data, reference_data)
 
 
 if __name__ == '__main__':
