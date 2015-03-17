@@ -107,7 +107,7 @@ class SQLiteDataSource(DataSource):
         else:
             self.update_table = table
         self.config = config
-        self.columns = self._get_columns()
+        self.columns = self.get_columns()
         for col in self.columns:
             self.table.append_column(column(col['name']))
 
@@ -432,7 +432,7 @@ class SQLiteDataSource(DataSource):
                 self.table.name, self.query
             ))
 
-    def _get_columns(self):
+    def get_columns(self):
         """Return a list of column information dicts.
 
         Queries either the database ``PRAGMA`` for column information or
