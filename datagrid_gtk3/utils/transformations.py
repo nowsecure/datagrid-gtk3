@@ -369,8 +369,9 @@ def image_transform(path, size=24, fill_image=True, draw_border=False,
         image = Image.open(path)
         image.load()
     except IOError:
-        # FIXME: If the image is damaged for some reason, use fallback for
-        # its mimetype. Maybe the image is not really an image.
+        # If the image is damaged for some reason, use fallback for
+        # its mimetype. Maybe the image is not really an image
+        # (it could be a video, a plain text file, etc)
         guessed_type = mimetypes.guess_type(path)[0] or ''
         fallback = _fallback_images[guessed_type.split('/')[0]]
         image = Image.open(fallback)
