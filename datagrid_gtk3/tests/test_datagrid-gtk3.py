@@ -27,6 +27,7 @@ from datagrid_gtk3.ui.grid import (
     default_get_full_path,
 )
 from datagrid_gtk3.utils import imageutils
+from datagrid_gtk3.utils.transformations import html_transform
 
 
 class DataGridControllerTest(unittest.TestCase):
@@ -184,10 +185,51 @@ class DataGridModelTest(unittest.TestCase):
 
     """Test DataGridModel."""
 
+    _ESCAPED_HTML = """
+        &lt;img class=&quot;size-medium wp-image-113&quot;
+             style=&quot;margin: 666px;&quot; title=&quot;xxx&quot;
+             src=&quot;http://something.org/xxx-111x222.jpg&quot;
+             alt=&quot;&quot; width=&quot;300&quot; /&gt;
+    """
+    _UNESCAPED_HTML = """
+        <img class="size-medium wp-image-113"
+             style="margin: 666px;" title="xxx"
+             src="http://something.org/xxx-111x222.jpg"
+             alt="" width="300" />
+    """
+
     def setUp(self):  # noqa
         """Create test data."""
         self.datagrid_model = DataGridModel(
             mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
+
+    def test_html_transform(self):
+        """Test html transformation on datagrid."""
+        self.assertEqual(self._transform('html', None), '<NULL>')
+        self.assertEqual(
+            self._transform('html', self._ESCAPED_HTML),
+            '<img class="size-medium wp-image-113" style="margin: 666px;" '
+            'title="xxx" src="http://something.org/x [...]')
+
+    def test_html_transform_no_max_lenth(self):
+        """Test html transformation on datagrid without max_length."""
+        with mock.patch('datagrid_gtk3.ui.grid.get_transformer') as gt:
+            gt.return_value = lambda v, **kw: html_transform(
+                v, max_length=None, oneline=True)
+            self.assertEqual(
+                self._transform('html', self._ESCAPED_HTML),
+                '<img class="size-medium wp-image-113" style="margin: 666px;" '
+                'title="xxx" src="http://something.org/xxx-111x222.jpg" '
+                'alt="" width="300" />')
+
+    def test_html_transform_no_oneline(self):
+        """Test html transformation on datagrid without oneline."""
+        with mock.patch('datagrid_gtk3.ui.grid.get_transformer') as gt:
+            gt.return_value = lambda v, **kw: html_transform(
+                v, max_length=None, oneline=False)
+            self.assertEqual(
+                self._transform('html', self._ESCAPED_HTML),
+                self._UNESCAPED_HTML)
 
     def test_timestamp_transform(self):
         """Return valid datetime with valid seconds input."""

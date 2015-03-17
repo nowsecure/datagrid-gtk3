@@ -2,6 +2,7 @@
 
 import collections
 import datetime
+import HTMLParser
 import mimetypes
 import os
 
@@ -85,16 +86,19 @@ def transformer(transformer_name):
 
 
 @transformer('string')
-def string_transform(value, max_length=None, decode_fallback=None):
+def string_transform(value, max_length=None, oneline=True,
+                     decode_fallback=None):
     """String transformation.
 
     :param object value: the value that will be converted to
         a string
     :param int max_length: if not `None`, will be used to
         ellipsize the string if greater than that.
+    :param bool oneline: if we should join all the lines together
+        in one line
     :param callable decode_fallback: a callable to use
         to decode value in case it cannot be converted to unicode directly
-    :return: the string representation of the value (
+    :return: the string representation of the value
     :rtype: str
     """
     if value is None:
@@ -117,7 +121,9 @@ def string_transform(value, max_length=None, decode_fallback=None):
                 raise
             value = decode_fallback(value)
 
-    value = u' '.join(value.splitlines())
+    if oneline:
+        value = u' '.join(v.strip() for v in value.splitlines() if v.strip())
+
     # Don't show more than max_length chars in treeview. Helps with performance
     if max_length is not None and len(value) > max_length:
         value = u'%s [...]' % (value[:max_length], )
@@ -125,6 +131,31 @@ def string_transform(value, max_length=None, decode_fallback=None):
     # At the end, if value is unicode, it needs to be converted to
     # an utf-8 encoded str or it won't be rendered in the treeview.
     return value.encode('utf-8')
+
+
+@transformer('html')
+def html_transform(value, max_length=None, oneline=True,
+                   decode_fallback=None):
+    """HTML transformation.
+
+    :param object value: the escaped html that will be unescaped
+    :param int max_length: if not `None`, will be used to
+        ellipsize the string if greater than that.
+    :param bool oneline: if we should join all the lines together
+        in one line
+    :param callable decode_fallback: a callable to use
+        to decode value in case it cannot be converted to unicode directly
+    :return: the html string unescaped
+    :rtype: str
+    """
+    if value is None:
+        return '<NULL>'
+
+    html_parser = HTMLParser.HTMLParser()
+    unescaped = html_parser.unescape(value)
+    return string_transform(
+        unescaped, max_length=max_length, oneline=oneline,
+        decode_fallback=decode_fallback)
 
 
 @transformer('boolean')

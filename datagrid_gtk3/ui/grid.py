@@ -1751,9 +1751,9 @@ class DataGridModel(GenericTreeModel):
                 value = value[len(self.IMAGE_PREFIX):]
             else:
                 value = None
-        elif transformer_name == 'string':
+        elif transformer_name in ['string', 'html']:
             transformer_kwargs.update(dict(
-                max_length=GRID_LABEL_MAX_LENGTH,
+                max_length=GRID_LABEL_MAX_LENGTH, oneline=True,
                 decode_fallback=self.decode_fallback,
             ))
 
