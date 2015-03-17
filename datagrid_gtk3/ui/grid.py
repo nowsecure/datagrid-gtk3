@@ -1619,9 +1619,10 @@ class DataGridModel(GenericTreeModel):
         self.flat_column_idx = self.data_source.flat_column_idx
         self.total_recs = self.data_source.total_recs
 
-        for i, row in enumerate(self.rows):
-            row.path = (i, )
-            self.row_id_mapper[row.data[self.id_column_idx]] = row
+        if self.id_column_idx is not None:
+            for i, row in enumerate(self.rows):
+                row.path = (i, )
+                self.row_id_mapper[row.data[self.id_column_idx]] = row
 
         self.emit('data-loaded', self.total_recs)
 
