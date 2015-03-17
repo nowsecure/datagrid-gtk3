@@ -712,9 +712,7 @@ class DataGridController(object):
         row_iterator = view.model.get_iter(path)
         record = self.model.data_source.get_single_record(
             self.model[row_iterator][self.model.id_column_idx])
-        # Why is the pixbuf column on view.pixbuf_column -1 position in
-        # this rec?
-        self.activated_icon_callback(record, view.pixbuf_column - 1)
+        self.activated_icon_callback(record, view.pixbuf_column)
 
     def on_treeview_row_activated(self, view, path, column):
         """Handle row-activated signal on the treeview.
