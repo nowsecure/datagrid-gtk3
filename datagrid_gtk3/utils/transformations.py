@@ -92,7 +92,6 @@ def string_transform(value, max_length=None, decode_fallback=None):
         a string
     :param int max_length: if not `None`, will be used to
         ellipsize the string if greater than that.
-    :param str encoding_hint: the encode to use on the string
     :param callable decode_fallback: a callable to use
         to decode value in case it cannot be converted to unicode directly
     :return: the string representation of the value (
@@ -105,7 +104,7 @@ def string_transform(value, max_length=None, decode_fallback=None):
         # FIXME GTK3: On gtk2, set_text would raise TypeError when
         # trying to set_text with a string containing a null (\x00)
         # character. gtk3 will allow that, but if the null character is
-        # at the beggining of it, it will be set as empty.
+        # at the beginning of it, it will be set as empty.
         if value.startswith('\x00'):
             value = repr(value)[1:-1]
 
@@ -221,9 +220,9 @@ def timestamp_transform(value, date_only=False):
 @transformer('timestamp_ms')
 @transformer('timestamp_unix_ms')
 def timestamp_ms_transform(value):
-    """Transform timestamp in miliseconds to ISO 8601 date format.
+    """Transform timestamp in milliseconds to ISO 8601 date format.
 
-    :param int value: Unix timestamp in miliseconds
+    :param int value: Unix timestamp in milliseconds
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
@@ -319,12 +318,12 @@ def timestamp_midnight_transform(value):
 
 @transformer('timestamp_midnight_ms')
 def timestamp_midnight_ms_transform(value):
-    """Transform midnight timestamp in miliseconds to ISO 8601 time format.
+    """Transform midnight timestamp in milliseconds to ISO 8601 time format.
 
-    Midnight timestamp is the count in seconds of the time thas
+    Midnight timestamp is the count in seconds of the time that
     has passed since midnight.
 
-    :param int value: midnight timestamp in miliseconds
+    :param int value: midnight timestamp in milliseconds
     :return: the time represented in ISO 8601 format
     :rtype: str
     """
@@ -335,7 +334,7 @@ def timestamp_midnight_ms_transform(value):
 def timestamp_midnight_Ms_transform(value):
     """Transform midnight timestamp in microsecond to ISO 8601 time format.
 
-    Midnight timestamp is the count in seconds of the time thas
+    Midnight timestamp is the count in seconds of the time that
     has passed since midnight.
 
     :param int value: midnight timestamp in microseconds
