@@ -649,8 +649,11 @@ class DataGridController(object):
         else:
             raise AssertionError("Unrecognized option %r" % (new_view, ))
 
-        # We want flat for flat view only
-        self.model.active_params['flat'] = new_view == OptionsPopup.VIEW_FLAT
+        # We want flat for flat and iconview, and only if we really have
+        # a flat column.
+        self.model.active_params['flat'] = (
+            self.model.flat_column_idx is not None and
+            new_view in [OptionsPopup.VIEW_FLAT, OptionsPopup.VIEW_ICON])
 
         child = self.container.grid_scrolledwindow.get_child()
         self.container.grid_scrolledwindow.remove(child)
@@ -709,9 +712,7 @@ class DataGridController(object):
         row_iterator = view.model.get_iter(path)
         record = self.model.data_source.get_single_record(
             self.model[row_iterator][self.model.id_column_idx])
-        # Why is the pixbuf column on view.pixbuf_column -1 position in
-        # this rec?
-        self.activated_icon_callback(record, view.pixbuf_column - 1)
+        self.activated_icon_callback(record, view.pixbuf_column)
 
     def on_treeview_row_activated(self, view, path, column):
         """Handle row-activated signal on the treeview.
@@ -1442,6 +1443,12 @@ class DataGridIconView(Gtk.IconView):
         self.set_model(None)
         self.model.refresh()
         self.set_model(self.model)
+
+        if self.model.flat_column_idx is not None:
+            # When defining a text column, we need to set a max width or
+            # it will expand the rows to fit the longest string.
+            self.set_item_width(100)
+            self.set_text_column(self.model.flat_column_idx)
 
         for column_index, column in enumerate(self.model.columns):
             # FIXME: Can we have more than one column with image transform?
