@@ -207,6 +207,9 @@ def timestamp_transform(value, date_only=False):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     try:
         dt = datetime.datetime.utcfromtimestamp(value)
     except ValueError:
@@ -227,6 +230,9 @@ def timestamp_ms_transform(value):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_transform(value / 10 ** 3)
 
 
@@ -239,6 +245,9 @@ def timestamp_Ms_transform(value):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_transform(value / 10 ** 6)
 
 
@@ -253,6 +262,9 @@ def timestamp_apple_transform(value):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_transform(value + _APPLE_TIMESTAMP_OFFSET)
 
 
@@ -267,6 +279,9 @@ def timestamp_webkit_transform(value):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_transform(value / 10 ** 6 - _WEBKIT_TIMESTAMP_OFFSET)
 
 
@@ -283,6 +298,9 @@ def timestamp_julian_transform(value, date_only=False):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_transform(
         (value - _UNIX_ZERO_POINT_IN_JULIAN_DAYS) * _SECONDS_IN_A_DAY,
         date_only=date_only)
@@ -299,6 +317,9 @@ def timestamp_julian_date_transform(value):
     :return: the date represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_julian_transform(value, date_only=True)
 
 
@@ -313,6 +334,9 @@ def timestamp_midnight_transform(value):
     :return: the time represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     dt = datetime.datetime.min + datetime.timedelta(0, value)
     return dt.time().isoformat()
 
@@ -328,6 +352,9 @@ def timestamp_midnight_ms_transform(value):
     :return: the time represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_midnight_transform(value / 10 ** 3)
 
 
@@ -342,6 +369,9 @@ def timestamp_midnight_Ms_transform(value):
     :return: the time represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
     return timestamp_midnight_transform(value / 10 ** 6)
 
 

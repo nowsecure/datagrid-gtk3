@@ -192,6 +192,8 @@ class DataGridModelTest(unittest.TestCase):
     def test_timestamp_transform(self):
         """Return valid datetime with valid seconds input."""
         self.assertEqual(
+            self._transform('timestamp', None), '')
+        self.assertEqual(
             self._transform('timestamp', 0),
             '1970-01-01T00:00:00')
         self.assertEqual(
@@ -223,6 +225,8 @@ class DataGridModelTest(unittest.TestCase):
     def test_timestamp_Ms_transform(self):
         """Return valid datetime with valid microseconds input."""
         self.assertEqual(
+            self._transform('timestamp_Ms', None), '')
+        self.assertEqual(
             self._transform('timestamp_Ms', 1104537600 * 10 ** 6),
             '2005-01-01T00:00:00')
         self.assertEqual(
@@ -231,6 +235,8 @@ class DataGridModelTest(unittest.TestCase):
 
     def test_timestamp_apple_transform(self):
         """Return valid datetime with valid apple timestamp input."""
+        self.assertEqual(
+            self._transform('timestamp_apple', None), '')
         self.assertEqual(
             self._transform('timestamp_apple', 0),
             '2001-01-01T00:00:00')
@@ -246,6 +252,8 @@ class DataGridModelTest(unittest.TestCase):
 
     def test_timestamp_webkit_transform(self):
         """Return valid datetime with valid webkit timestamp input."""
+        self.assertEqual(
+            self._transform('timestamp_webkit', None), '')
         self.assertEqual(
             self._transform('timestamp_webkit', 0),
             '1601-01-01T00:00:00')
@@ -265,6 +273,8 @@ class DataGridModelTest(unittest.TestCase):
     def test_timestamp_julian_transform(self):
         """Return valid datetime with valid julian date input."""
         self.assertEqual(
+            self._transform('timestamp_julian', None), '')
+        self.assertEqual(
             self._transform('timestamp_julian', 2457093.5),
             '2015-03-12T00:00:00')
         self.assertEqual(
@@ -279,6 +289,8 @@ class DataGridModelTest(unittest.TestCase):
 
     def test_timestamp_julian_date_transform(self):
         """Return valid datetime with valid julian date input."""
+        self.assertEqual(
+            self._transform('timestamp_julian_date', None), '')
         self.assertEqual(
             self._transform('timestamp_julian_date', 2457093.5),
             '2015-03-12')
@@ -295,6 +307,8 @@ class DataGridModelTest(unittest.TestCase):
     def test_timestamp_midnight_transform(self):
         """Return valid time with valid seconds after midnight input."""
         self.assertEqual(
+            self._transform('timestamp_midnight', None), '')
+        self.assertEqual(
             self._transform('timestamp_midnight', 0),
             '00:00:00')
         self.assertEqual(
@@ -307,6 +321,8 @@ class DataGridModelTest(unittest.TestCase):
     def test_timestamp_midnight_ms_transform(self):
         """Return valid time with valid miliseconds after midnight input."""
         self.assertEqual(
+            self._transform('timestamp_midnight_ms', None), '')
+        self.assertEqual(
             self._transform('timestamp_midnight_ms', 0),
             '00:00:00')
         self.assertEqual(
@@ -318,6 +334,8 @@ class DataGridModelTest(unittest.TestCase):
 
     def test_timestamp_midnight_Ms_transform(self):
         """Return valid time with valid microseconds after midnight input."""
+        self.assertEqual(
+            self._transform('timestamp_midnight_Ms', None), '')
         self.assertEqual(
             self._transform('timestamp_midnight_Ms', 0),
             '00:00:00')
