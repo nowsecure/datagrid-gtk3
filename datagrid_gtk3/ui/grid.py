@@ -1757,6 +1757,13 @@ class DataGridModel(GenericTreeModel):
                 decode_fallback=self.decode_fallback,
             ))
 
+        if self.data_source.config:
+            custom_options = self.data_source.config[column_index].get(
+                'encoding_options'
+            )
+            if custom_options:
+                transformer_kwargs['options'] = custom_options
+
         return transformer(value, **transformer_kwargs)
 
     def set_value(self, itr, column, value, emit_event=True):
