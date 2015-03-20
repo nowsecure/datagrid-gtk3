@@ -292,7 +292,7 @@ def timestamp_julian_transform(value, date_only=False):
     Julian timestamps are the number of days that has passed since
     noon Universal Time on January 1, 4713 BCE.
 
-    :param int value: Julian timestamp in microseconds
+    :param int value: Julian timestamp in days
     :param bool date_only: if we should format only the date part,
          ignoring the time
     :return: the datetime represented in ISO 8601 format
@@ -327,7 +327,7 @@ def timestamp_julian_date_transform(value):
 def timestamp_midnight_transform(value):
     """Transform midnight timestamp to ISO 8601 time format.
 
-    Midnight timestamp is the count in seconds of the time thas
+    Midnight timestamp is the count in seconds of the time that
     has passed since midnight.
 
     :param int value: midnight timestamp in seconds
