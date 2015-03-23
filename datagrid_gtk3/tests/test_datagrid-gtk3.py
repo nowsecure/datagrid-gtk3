@@ -26,7 +26,7 @@ from datagrid_gtk3.ui.grid import (
     OptionsPopup,
     default_get_full_path,
 )
-from datagrid_gtk3.utils import imageutils
+from datagrid_gtk3.utils import imageutils, transformations
 
 
 class DataGridControllerTest(unittest.TestCase):
@@ -187,7 +187,11 @@ class DataGridModelTest(unittest.TestCase):
     def setUp(self):  # noqa
         """Create test data."""
         self.datagrid_model = DataGridModel(
-            mock.MagicMock(), mock.MagicMock(), mock.MagicMock())
+            data_source=SQLiteDataSource('', 'test',
+                                         ensure_selected_column=False),
+            get_media_callback=mock.MagicMock(),
+            decode_fallback=mock.MagicMock()
+        )
 
     def test_timestamp_transform(self):
         """Return valid datetime with valid seconds input."""
@@ -433,6 +437,20 @@ class DataGridModelTest(unittest.TestCase):
             open_.assert_called_once_with('xxx')
             self.assertEqual(add_border.call_count, 0)
             self.assertEqual(add_drop_shadow.call_count, 0)
+
+    def test_custom_transform(self):
+        """Test custom transformations."""
+        def test_transform(value, options=1):
+            return options * value.upper()
+
+        transformations.register_transformer('test', test_transform)
+        try:
+            self.assertEqual(self._transform('test', 'x'), 'X')
+            self.datagrid_model.data_source.config = [dict(encoding_options=2)]
+            self.assertEqual(self._transform('test', 'x'), 'XX')
+        finally:
+            transformations.unregister_transformer('test')
+            self.datagrid_model.data_source.config = None
 
     def _transform(self, transform_type, value):
         self.datagrid_model.columns = [
