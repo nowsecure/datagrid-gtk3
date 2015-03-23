@@ -505,6 +505,8 @@ class SQLiteDataSource(DataSource):
                         self.id_column_idx = i
                     if col_name == self.PARENT_ID_COLUMN:
                         self.parent_column_idx = i
+                    if col_name == self.CHILDREN_LEN_COLUMN:
+                        self.children_len_column_idx = i
                     if col_name == self.FLAT_COLUMN:
                         self.flat_column_idx = i
 
@@ -531,12 +533,15 @@ class SQLiteDataSource(DataSource):
 
                 # If __selected column is present, it was inserted on position
                 # 0, so we need to increase the id/parent columns by 1
-                if has_selected and self.id_column_idx is not None:
-                    self.id_column_idx += 1
-                if has_selected and self.parent_column_idx is not None:
-                    self.parent_column_idx += 1
-                if has_selected and self.flat_column_idx is not None:
-                    self.flat_column_idx += 1
+                if has_selected:
+                    if self.id_column_idx is not None:
+                        self.id_column_idx += 1
+                    if self.parent_column_idx is not None:
+                        self.parent_column_idx += 1
+                    if self.children_len_column_idx is not None:
+                        self.children_len_column_idx += 1
+                    if self.flat_column_idx is not None:
+                        self.flat_column_idx += 1
 
         return cols
 
@@ -596,27 +601,37 @@ class SQLiteDataSource(DataSource):
             # If there's no where clause, we can load the results lazily
             where = self.table.columns[self.PARENT_ID_COLUMN] == parent_id
 
-            count_table = alias(self.table, '__count')
-            # We could use the comparison between the columns, but that would
-            # make sqlalchemy add self.table in the FROM clause, which
-            # would produce wrong results.
-            count_where = '%s.%s = %s.%s' % (
-                count_table.name, self.PARENT_ID_COLUMN,
-                self.table.name, self.ID_COLUMN)
-            count_select = select(
-                [func.count(1)],
-                whereclause=count_where, from_obj=[count_table])
+            if self.CHILDREN_LEN_COLUMN is None:
+                count_table = alias(self.table, '__count')
+                # We could use the comparison between the columns, but that would
+                # make sqlalchemy add self.table in the FROM clause, which
+                # would produce wrong results.
+                count_where = '%s.%s = %s.%s' % (
+                    count_table.name, self.PARENT_ID_COLUMN,
+                    self.table.name, self.ID_COLUMN)
+                count_select = select(
+                    [func.count(1)],
+                    whereclause=count_where, from_obj=[count_table])
 
-            columns = self.table.columns.values()
-            # We have to compile this here or else sqlalchemy would put
-            # this inside the FROM part.
-            columns.append('(%s)' % (_compile(count_select), ))
+                columns = self.table.columns.values()
+                # We have to compile this here or else sqlalchemy would put
+                # this inside the FROM part.
+                columns.append('(%s)' % (_compile(count_select), ))
+                extra_count_col = True
+            else:
+                columns = self.table.columns
+                extra_count_col = False
+
             query = self.select(
                 conn, self.table, columns=columns,
                 where=where, order_by=order_by)
 
             for row in query:
-                children_len = row.pop(-1)
+                if extra_count_col:
+                    children_len = row.pop(-1)
+                else:
+                    children_len = row[self.children_len_column_idx]
+
                 yield Node(data=row, children_len=children_len)
 
 

@@ -45,6 +45,7 @@ class DataSource(object):
 
     ID_COLUMN = 'rowid'
     PARENT_ID_COLUMN = None
+    CHILDREN_LEN_COLUMN = None
     FLAT_COLUMN = None
 
     def __init__(self):
@@ -53,6 +54,7 @@ class DataSource(object):
         self.display_all = True
         self.id_column_idx = None
         self.parent_column_idx = None
+        self.children_len_column_idx = None
         self.flat_column_idx = None
 
     def get_selected_columns(self):
