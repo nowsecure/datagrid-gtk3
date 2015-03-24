@@ -23,6 +23,7 @@ _fallback_images = collections.defaultdict(
     image=os.path.join(_MEDIA_FILES, 'icons', 'image.png'),
     video=os.path.join(_MEDIA_FILES, 'icons', 'video.png'),
     audio=os.path.join(_MEDIA_FILES, 'icons', 'audio.png'),
+    folder=os.path.join(_MEDIA_FILES, 'icons', 'folder.png'),
 )
 
 # Total seconds in a day
@@ -441,8 +442,12 @@ def image_transform(path, size=24, fill_image=True, draw_border=False,
         # If the image is damaged for some reason, use fallback for
         # its mimetype. Maybe the image is not really an image
         # (it could be a video, a plain text file, etc)
-        guessed_type = mimetypes.guess_type(path)[0] or ''
-        fallback = _fallback_images[guessed_type.split('/')[0]]
+        if os.path.isdir(path):
+            # mimetypes.guess_type doesn't work for folders
+            fallback = _fallback_images['folder']
+        else:
+            guessed_type = mimetypes.guess_type(path)[0] or ''
+            fallback = _fallback_images[guessed_type.split('/')[0]]
         image = Image.open(fallback)
 
     image.thumbnail((size, size), Image.BICUBIC)
