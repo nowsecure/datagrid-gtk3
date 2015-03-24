@@ -161,10 +161,6 @@ class SQLiteDataSource(DataSource):
 
         # OFFSET
         page = params.get('page', 0)
-        # FIXME: If we have a PARENT_ID_COLUMN, all results
-        # were loaded on first load. How to handle this better?
-        if page > 0 and self.PARENT_ID_COLUMN is not None:
-            return rows
         offset = page * self.MAX_RECS
         # A little optimization to avoid doing more queries when we
         # already loaded everything

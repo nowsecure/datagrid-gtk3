@@ -1639,8 +1639,11 @@ class DataGridModel(GenericTreeModel):
         :return: True if update took place, False if not
         :rtype: bool
         """
-        # When the data is hierarchical, all the root data was already loaded
-        if parent_node is None and self.parent_column_idx is not None:
+        is_tree = (self.parent_column_idx is not None and
+                   not self.active_params.get('flat', False))
+        # When the data is hierarchical, all the root data was already loaded,
+        # except in a flat view, where data is being lazy loaded.
+        if is_tree and parent_node is None:
             return False
 
         if parent_node is None:
@@ -1667,7 +1670,7 @@ class DataGridModel(GenericTreeModel):
             # FIXME: Non-hierarchical data need this to display the new row,
             # but hierarchical ones not only will work without this, but will
             # produce warnings if we try to call this for them.
-            if self.parent_column_idx is None:
+            if not is_tree:
                 path = Gtk.TreePath(row.path)
                 self.row_inserted(path, self.get_iter(path))
 
