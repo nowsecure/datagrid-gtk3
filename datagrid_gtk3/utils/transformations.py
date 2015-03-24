@@ -63,6 +63,15 @@ def register_transformer(transformer_name, transformer):
     _transformers[transformer_name] = transformer
 
 
+def unregister_transformer(transformer_name):
+    """Unregister a transformer.
+
+    :param str transformer_name: the name to register the transformer
+    :raise KeyError: if a transformer is not registered under the given name
+    """
+    del _transformers[transformer_name]
+
+
 def transformer(transformer_name):
     """A decorator to easily register a decorator.
 
