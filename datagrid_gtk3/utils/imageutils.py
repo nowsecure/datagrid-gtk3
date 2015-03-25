@@ -4,13 +4,56 @@ Some general image utilities using PIL.
 """
 
 import io
+import mimetypes
+import os
 
-from gi.repository import GdkPixbuf
-from PIL import Image, ImageFilter, ImageFile
+from gi.repository import (
+    GdkPixbuf,
+    Gtk,
+)
+from PIL import Image, ImageFilter
 
+mimetypes.init()
 # Generating a drop shadow is an expensive operation. Keep a cache
 # of already generated drop shadows so they can be reutilized
 _drop_shadows_cache = {}
+
+
+def get_icon_for_file(filename, size):
+    """Get icon for filename mimetype.
+
+    Analyze filename to get its mimetype and return the path of an
+    icon representing it.
+
+    :param str filename: path of the file to be alalyzed
+    :param int size: size of the icon, to be passed to
+        :class:`Gtk.IconTheme.choose_icon`
+    :return: the path to the icon
+    :rtype: str
+    """
+    if os.path.isdir(filename):
+        # mimetypes.guess_type doesn't work for folders
+        mimetype = 'folder'
+        details = 'folder'
+    else:
+        # Fallback to unknown if mimetypes wasn't able to guess it
+        guessed_mime = mimetypes.guess_type(filename)[0] or 'unknown/unknown'
+        # Is there any value returned by guess_type that would have no /?
+        mimetype, details = guessed_mime.split('/')
+
+    # FIXME: guess_type mimetype is formatted differently from what
+    # Gtk.IconTheme expects. We are trying to improve matching here.
+    # Is there a better way for doing this?
+    icon_list = ['%s-%s' % (mimetype, details), details, mimetype]
+    if mimetype == 'application':
+        icon_list.append('application-x-%s' % (details, ))
+    icon_list.append('%s-x-generic' % (mimetype, ))
+    icon_list.append('unknown')
+
+    icon_theme = Gtk.IconTheme.get_default()
+    icon = icon_theme.choose_icon(icon_list, size, Gtk.IconLookupFlags.NO_SVG)
+
+    return icon.get_filename()
 
 
 def image2pixbuf(image):
@@ -23,8 +66,6 @@ def image2pixbuf(image):
     """
     with io.BytesIO() as f:
         image.save(f, 'png')
-        contents = f.getvalue()
-
         loader = GdkPixbuf.PixbufLoader.new_with_type('png')
         loader.write(f.getvalue())
         pixbuf = loader.get_pixbuf()
