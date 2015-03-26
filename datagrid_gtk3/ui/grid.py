@@ -1596,9 +1596,13 @@ class DataGridModel(GenericTreeModel):
         self.datetime_columns = []
         self.column_types = []
         for column in self.columns:
-            if column['transform'] in ('timestamp', 'ios_timestamp'):
+            transform = column['transform']
+            if transform is None:
+                continue
+            if transform.startswith('timestamp'):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
+
         self.display_columns = None
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
