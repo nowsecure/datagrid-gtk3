@@ -230,13 +230,6 @@ class OptionsPopup(Gtk.Window):
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
         model = self._controller.model
-        if model.display_columns is None:
-            model.display_columns = set(
-                column['name']
-                for column in model.columns
-                if not column['name'].startswith('__')
-            )
-
         for column in model.columns:
             if column['name'].startswith('__'):
                 continue
@@ -1193,8 +1186,7 @@ class DataGridView(Gtk.TreeView):
             (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE))
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
-            display = (self.model.display_columns is None
-                       or item in self.model.display_columns)
+            display = item in self.model.display_columns
             if display and column['name'] not in dont_display:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:
@@ -1603,7 +1595,10 @@ class DataGridModel(GenericTreeModel):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
 
-        self.display_columns = None
+        self.display_columns = {
+            col['name'] for col in self.columns
+            if col['visible'] and not col['name'].startswith('__')}
+
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
 

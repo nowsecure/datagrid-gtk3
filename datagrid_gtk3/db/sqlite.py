@@ -470,7 +470,6 @@ class SQLiteDataSource(DataSource):
                 has_selected = False
                 counter = 0
                 for i, row in enumerate(rows):
-                    col_defined = False
                     col_name = row[1]
                     if self.config is not None and (
                             col_name not in [self.ID_COLUMN, '__selected']):
@@ -479,15 +478,16 @@ class SQLiteDataSource(DataSource):
                         data_type = self.STRING_PY_TYPES[
                             self.config[counter]['type']]
                         transform = self.config[counter].get('encoding', None)
-                        col_defined = True
                         expand = self.config[counter].get('expand', False)
+                        visible = self.config[counter].get('visible', True)
                         counter += 1
-                    if not col_defined:
+                    else:
                         display_name = row[1]
                         data_type = self.SQLITE_PY_TYPES.get(
                             row[2].upper(), str)
                         transform = None  # TODO: eg. buffer
                         expand = False
+                        visible = True
 
                     col_dict = {
                         'name': col_name,
@@ -495,6 +495,7 @@ class SQLiteDataSource(DataSource):
                         'type': data_type,
                         'transform': transform,
                         'expand': expand,
+                        'visible': visible,
                     }
 
                     if col_name == self.ID_COLUMN:
@@ -523,6 +524,8 @@ class SQLiteDataSource(DataSource):
                         'display': '__selected',
                         'type': int,
                         'transform': 'boolean',
+                        'expand': False,
+                        'visible': True,
                     }
                     cols.insert(0, col_dict)
                     has_selected = True
