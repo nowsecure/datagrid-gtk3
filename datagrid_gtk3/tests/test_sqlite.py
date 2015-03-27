@@ -13,8 +13,8 @@ class SQLiteDataSourceTest(unittest.TestCase):
 
     def setUp(self):
         """Create test data."""
-        self.db_file = create_db()
         self.table = 'people'
+        self.db_file = create_db(self.table)
         self.datasource = SQLiteDataSource(
             self.db_file,
             table=self.table,
@@ -109,7 +109,8 @@ class SQLiteDataSourceTest(unittest.TestCase):
         )
         rows = datasource.load()
         data = {tuple(row.data) for row in rows}
-        reference_data = {(record[1], record[3]) for record in TEST_DATA}
+        reference_data = {(record[1], record[3])
+                          for record in TEST_DATA[self.table]['data']}
         self.assertEqual(data, reference_data)
 
 

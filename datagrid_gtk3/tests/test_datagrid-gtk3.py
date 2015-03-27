@@ -8,7 +8,6 @@ import os
 import unittest
 
 from gi.repository import (
-    Gdk,
     Gtk,
     GdkPixbuf,
 )
@@ -16,7 +15,7 @@ from PIL import Image
 import mock
 
 from datagrid_gtk3.db.sqlite import SQLiteDataSource
-from datagrid_gtk3.tests.data import create_db
+from datagrid_gtk3.tests.data import create_db, TEST_DATA
 from datagrid_gtk3.ui.grid import (
     DataGridContainer,
     DataGridController,
@@ -30,14 +29,23 @@ from datagrid_gtk3.utils import imageutils, transformations
 from datagrid_gtk3.utils.transformations import html_transform
 
 
+class _FilesDataSource(SQLiteDataSource):
+
+    """SQLiteDataSource to use with 'files' test database."""
+
+    PARENT_ID_COLUMN = '__parent'
+    CHILDREN_LEN_COLUMN = 'children_len'
+    FLAT_COLUMN = 'flatname'
+
+
 class DataGridControllerTest(unittest.TestCase):
 
     """Test DataGridController."""
 
     def setUp(self):  # noqa
         """Create test data."""
-        self.db_file = create_db()
         self.table = 'people'
+        self.db_file = create_db(self.table)
         self.datasource = SQLiteDataSource(
             self.db_file,
             self.table,
@@ -177,9 +185,158 @@ class DataGridControllerTest(unittest.TestCase):
             add_rows.assert_called_once_with()
 
 
-class DataGridModelTest(unittest.TestCase):
+class DataGridModelTreeTest(unittest.TestCase):
 
-    """Test DataGridModel."""
+    """Test for DataGridModel using an hierarchical data source."""
+
+    def setUp(self):  # noqa
+        """Create test data."""
+        self.table = 'files'
+        self.db_file = create_db(self.table)
+
+        self.datasource = _FilesDataSource(
+            self.db_file, self.table, None,
+            [
+                {'column': 'Parent', 'type': 'str'},
+                {'column': 'Filename', 'type': 'str'},
+                {'column': 'Flatname', 'type': 'str'},
+                {'column': 'CHildren', 'type': 'int'},
+            ],
+            ensure_selected_column=False,
+        )
+        self.model = DataGridModel(self.datasource, None, None)
+        self.model.active_params['order_by'] = '__id'
+        self.model.refresh()
+
+    def test_hierarchy(self):
+        """Test that iter rows will load database rows as required."""
+        self.assertEqual(self.model.rows.children_len, 4)
+        self.assertEqual(
+            [row.data[0] for row in self.model.rows],
+            ['file-0', 'file-1', 'folder-0', 'folder-1'])
+        self.assertEqual(self.model.rows.path, ())
+
+        # folder-0
+        self.assertEqual(len(self.model.rows[2]), 0)
+        self.assertEqual(self.model.rows[2].children_len, 2)
+        self.model.add_rows(parent_node=self.model.rows[2])
+        self.assertEqual(
+            [row.data[0] for row in self.model.rows[2]],
+            ['file-0-0', 'file-0-1'])
+        self.assertEqual(self.model.rows[2].path, (2, ))
+
+        # folder-1
+        self.assertEqual(len(self.model.rows[3]), 0)
+        self.assertEqual(self.model.rows[3].children_len, 3)
+        self.model.add_rows(parent_node=self.model.rows[3])
+        self.assertEqual(
+            [row.data[0] for row in self.model.rows[3]],
+            ['file-1-0', 'file-1-1', 'folder-1-0'])
+        self.assertEqual(self.model.rows[3].path, (3, ))
+
+        # folder-1-0
+        self.assertEqual(len(self.model.rows[3][2]), 0)
+        self.assertEqual(self.model.rows[3][2].children_len, 1)
+        self.model.add_rows(parent_node=self.model.rows[3][2])
+        self.assertEqual(
+            [row.data[0] for row in self.model.rows[3][2]],
+            ['file-1-0-0'])
+        self.assertEqual(self.model.rows[3][2].path, (3, 2))
+
+    def test_iter_rows(self):
+        """Test that iter rows will load database rows as required."""
+        self.assertNotEqual(
+            {tuple(row.data) for row in self.model.iter_rows(load_rows=False)},
+            set(TEST_DATA[self.table]['data']))
+        self.assertEqual(
+            {tuple(row.data) for row in self.model.iter_rows(load_rows=True)},
+            set(TEST_DATA[self.table]['data']))
+
+    def test_get_iter(self):
+        """Test that get_iter returns a valid way to access data."""
+        for path, expected_value in [
+                ((0, ), 'file-0'),
+                ((3, ), 'folder-1'),
+                ((3, 2), 'folder-1-0'),
+                ((3, 1), 'file-1-1')]:
+            itr = self.model.get_iter(path)
+            self.assertEqual(self.model.get_value(itr, 0), expected_value)
+
+    def test_iter_has_child(self):
+        """Test that iter_has_child returns valid information."""
+        for path, has_children in [
+                ((0, ), False),
+                ((3, ), True),
+                ((3, 2), True),
+                ((3, 1), False)]:
+            itr = self.model.get_iter(path)
+            self.assertEqual(self.model.iter_has_child(itr), has_children)
+
+    def test_iter_n_children(self):
+        """Test that iter_m_childrem returns valid number of children."""
+        for path, children_len in [
+                ((0, ), 0),
+                ((3, ), 3),
+                ((3, 2), 1),
+                ((3, 1), 0)]:
+            itr = self.model.get_iter(path)
+            self.assertEqual(self.model.iter_n_children(itr), children_len)
+
+    def test_iter_parent(self):
+        """Test that iter_parent returns valid parent for row."""
+        for path in [(0, ), (3, )]:
+            itr = self.model.get_iter(path)
+            self.assertEqual(self.model.iter_parent(itr), None)
+
+        for path, parent_path in [
+                ((3, 2), (3, )),
+                ((3, 1), (3, ))]:
+            # Iter is not the same and comparing them will fail, even if they
+            # are pointing to the same row. Use path for this comparison.
+            parent = self.model.get_path(self.model.get_iter(parent_path))
+            itr = self.model.get_iter(path)
+
+    def test_iter_next(self):
+        """Test that iter_next returns iter for parent's next row."""
+        for path, next_path in [
+                ((2, ), (3, )),
+                ((3, 1), (3, 2))]:
+            # Iter is not the same and comparing them will fail, even if they
+            # are pointing to the same row. Use path for this comparison.
+            itr = self.model.get_iter(path)
+            self.assertEqual(
+                self.model.get_path(self.model.iter_next(itr)),
+                self.model.get_path(self.model.get_iter(next_path)))
+
+    def test_iter_nth_child(self):
+        """Test that iter_nth_child returns iter parent's for nth child."""
+        for path, pos, child_path in [
+                (None, 1, (1, )),
+                ((3, ), 1, (3, 1))]:
+            # Iter is not the same and comparing them will fail, even if they
+            # are pointing to the same row. Use path for this comparison.
+            itr = path and self.model.get_iter(path)
+            self.assertEqual(
+                self.model.get_path(self.model.iter_nth_child(itr, pos)),
+                self.model.get_path(self.model.get_iter(child_path)))
+
+    def test_iter_children(self):
+        """Test that iter_children returns iter fir parent's first child."""
+        # Iter is not the same and comparing them will fail, even if they
+        # are pointing to the same row. Use path for this comparison.
+        path = self.model.get_path(self.model.get_iter((0, )))
+        self.assertEqual(
+            self.model.get_path(self.model.iter_children()), path)
+
+        itr = self.model.get_iter((3, ))
+        self.assertEqual(
+            self.model.get_path(self.model.iter_children(itr)),
+            self.model.get_path(self.model.get_iter((3, 0))))
+
+
+class TransformationsTest(unittest.TestCase):
+
+    """Test transformations done by DataGridModel."""
 
     _ESCAPED_HTML = """
         &lt;img class=&quot;size-medium wp-image-113&quot;
