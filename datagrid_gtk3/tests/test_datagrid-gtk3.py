@@ -120,10 +120,6 @@ class DataGridControllerTest(unittest.TestCase):
         """The views are instances of the right classes."""
         tree_view = self.datagrid_controller.tree_view
 
-        self.assertIsNone(self.model.display_columns)
-        # Make sure model.display_columns will not be None
-        self.datagrid_controller.options_popup._get_visibility_options().next()
-
         self.assertEqual(len(tree_view.get_columns()), 6)
         self.assertEqual(
             self.model.display_columns,

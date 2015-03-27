@@ -1,10 +1,7 @@
 """Data transformation utils."""
 
-import collections
 import datetime
 import HTMLParser
-import mimetypes
-import os
 
 from gi.repository import (
     GdkPixbuf,
@@ -14,16 +11,7 @@ from PIL import Image
 
 from datagrid_gtk3.utils import imageutils
 
-mimetypes.init()
 _transformers = {}
-_MEDIA_FILES = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), os.pardir, "data", "media")
-_fallback_images = collections.defaultdict(
-    lambda: os.path.join(_MEDIA_FILES, 'icons', 'text.png'),
-    image=os.path.join(_MEDIA_FILES, 'icons', 'image.png'),
-    video=os.path.join(_MEDIA_FILES, 'icons', 'video.png'),
-    audio=os.path.join(_MEDIA_FILES, 'icons', 'audio.png'),
-)
 
 # Total seconds in a day
 _SECONDS_IN_A_DAY = int(
@@ -432,17 +420,18 @@ def image_transform(path, size=24, fill_image=True, draw_border=False,
     :returns: the resized pixbuf
     :rtype: :class:`GdkPixbuf.Pixbuf`
     """
-    path = path or _fallback_images['image']
-
+    path = path or ''
     try:
         image = Image.open(path)
         image.load()
     except IOError:
+        # Size will always be rounded to the next value. After 48, the next is
+        # 256 and we don't want something that big here.
+        fallback_size = min(size, 48)
         # If the image is damaged for some reason, use fallback for
         # its mimetype. Maybe the image is not really an image
         # (it could be a video, a plain text file, etc)
-        guessed_type = mimetypes.guess_type(path)[0] or ''
-        fallback = _fallback_images[guessed_type.split('/')[0]]
+        fallback = imageutils.get_icon_for_file(path, fallback_size)
         image = Image.open(fallback)
 
     image.thumbnail((size, size), Image.BICUBIC)
