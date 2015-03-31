@@ -629,10 +629,12 @@ class DataGridController(object):
         """
         if new_view == OptionsPopup.VIEW_ICON:
             self.view = self.icon_view
+            self.tree_view.set_model(None)
             self.model.image_max_size = 100.0
             self.model.image_draw_border = True
         elif new_view in [OptionsPopup.VIEW_TREE, OptionsPopup.VIEW_FLAT]:
             self.view = self.tree_view
+            self.icon_view.set_model(None)
             self.model.image_max_size = 24.0
             self.model.image_draw_border = False
         else:
