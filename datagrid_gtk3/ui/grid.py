@@ -408,7 +408,7 @@ class DataGridController(object):
         self.activated_row_callback = activated_row_callback
 
         self.vscroll = container.grid_scrolledwindow.get_vadjustment()
-        self.vscroll.connect('value-changed', self.on_scrolled)
+        self.vscroll.connect_after('value-changed', self.on_scrolled)
 
         self.tree_view = DataGridView(None, has_checkboxes=has_checkboxes)
         self.icon_view = DataGridIconView(None, has_checkboxes=has_checkboxes)
@@ -591,18 +591,14 @@ class DataGridController(object):
         :param vadj: Adjustment widget associated with vertical scrollbar
         :type vadj: :class:`Gtk.Adjustment`
         """
-        # We don't need the visible_range optimization for treeview
-        if self.view is self.icon_view:
-            self.model.visible_range = self.view.get_visible_range()
-        else:
-            self.model.visible_range = None
-
         scrolled_to_bottom = (
             vadj.get_value() == (vadj.get_upper() - vadj.get_page_size()) or
             vadj.get_page_size() == vadj.get_upper())
 
         if scrolled_to_bottom:
             self.model.add_rows()
+
+        self._set_visible_range()
 
         return False
 
@@ -889,7 +885,11 @@ class DataGridController(object):
         if not where_dict:
             del self.model.active_params['where']
 
+        # This will speed up loading the views. Images will be loaded
+        # after when _set_visible_range executes.
+        self.model.visible_range = ((-1, ), (-1, ))
         self.view.refresh()
+        GObject.idle_add(self._set_visible_range)
 
         # If any of the root rows has children, we should show the
         # expand/collapse buttons
@@ -901,6 +901,17 @@ class DataGridController(object):
             for widget in [self.container.expand_all_btn,
                            self.container.collapse_all_btn]:
                 widget.set_visible(False)
+
+    def _set_visible_range(self):
+        """Update model with current view's visible range."""
+        visible_range = self.view.get_visible_range()
+        if visible_range is None:
+            return
+
+        self.model.visible_range = (
+            tuple(visible_range[0]), tuple(visible_range[1]))
+
+        self.view.queue_draw()
 
 
 class DataGridView(Gtk.TreeView):
@@ -1918,9 +1929,7 @@ class DataGridModel(GenericTreeModel):
     def on_get_value(self, rowref, column):
         """Return the value stored in a particular column for the node."""
         if self.visible_range:
-            start = tuple(self.visible_range[0])
-            end = tuple(self.visible_range[1])
-            visible = start <= rowref <= end
+            visible = self.visible_range[0] <= rowref <= self.visible_range[1]
         else:
             visible = True
 
