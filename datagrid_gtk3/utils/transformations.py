@@ -12,24 +12,10 @@ from gi.repository import (
 from PIL import Image
 
 from datagrid_gtk3.utils import imageutils
+from datagrid_gtk3.utils import dateutils
 
 logger = logging.getLogger(__name__)
 _transformers = {}
-
-# Total seconds in a day
-_SECONDS_IN_A_DAY = int(
-    (datetime.datetime(1970, 1, 2) -
-     datetime.datetime(1970, 1, 1)).total_seconds())
-# iOS timestamps start from 2001-01-01
-_APPLE_TIMESTAMP_OFFSET = int(
-    (datetime.datetime(2001, 1, 1) -
-     datetime.datetime(1970, 1, 1)).total_seconds())
-# Webkit timestamps start at 1601-01-01
-_WEBKIT_TIMESTAMP_OFFSET = int(
-    (datetime.datetime(1970, 1, 1) -
-     datetime.datetime(1601, 1, 1)).total_seconds())
-# Unix epoch zero-point (1970-01-01) in Julian days
-_UNIX_ZERO_POINT_IN_JULIAN_DAYS = 2440587.5
 
 __all__ = ('get_transformer', 'register_transformer')
 
@@ -238,7 +224,7 @@ def datetime_transform(value):
 
 @transformer('timestamp')
 @transformer('timestamp_unix')
-def timestamp_transform(value, date_only=False):
+def timestamp_transform(value, date_only=False, isoformat=True):
     """Transform timestamp to ISO 8601 date format.
 
     :param int value: Unix timestamp
@@ -275,7 +261,8 @@ def timestamp_ms_transform(value):
     if value is None:
         return ''
 
-    return timestamp_transform(value / 10 ** 3)
+    return timestamp_transform(
+        dateutils.normalize_timestamp(value, 'timestamp_unix_ms'))
 
 
 @transformer('timestamp_Ms')
@@ -290,7 +277,8 @@ def timestamp_Ms_transform(value):
     if value is None:
         return ''
 
-    return timestamp_transform(value / 10 ** 6)
+    return timestamp_transform(
+        dateutils.normalize_timestamp(value, 'timestamp_unix_Ms'))
 
 
 @transformer('timestamp_ios')
@@ -307,7 +295,8 @@ def timestamp_apple_transform(value):
     if value is None:
         return ''
 
-    return timestamp_transform(value + _APPLE_TIMESTAMP_OFFSET)
+    return timestamp_transform(
+        dateutils.normalize_timestamp(value, 'timestamp_apple'))
 
 
 @transformer('timestamp_webkit')
@@ -324,7 +313,8 @@ def timestamp_webkit_transform(value):
     if value is None:
         return ''
 
-    return timestamp_transform(value / 10 ** 6 - _WEBKIT_TIMESTAMP_OFFSET)
+    return timestamp_transform(
+        dateutils.normalize_timestamp(value, 'timestamp_webkit'))
 
 
 @transformer('timestamp_julian')
@@ -344,7 +334,7 @@ def timestamp_julian_transform(value, date_only=False):
         return ''
 
     return timestamp_transform(
-        (value - _UNIX_ZERO_POINT_IN_JULIAN_DAYS) * _SECONDS_IN_A_DAY,
+        dateutils.normalize_timestamp(value, 'timestamp_julian'),
         date_only=date_only)
 
 
