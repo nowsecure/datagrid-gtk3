@@ -233,7 +233,7 @@ def datetime_transform(value):
         logger.warning('Not a datetime: %s', value)
         return str(value)
 
-    return value.isoformat()
+    return value.isoformat(' ')
 
 
 @transformer('timestamp')
@@ -258,9 +258,9 @@ def timestamp_transform(value, date_only=False):
         return str(value)
 
     if date_only:
-        dt = dt.date()
-
-    return dt.isoformat()
+        return dt.date().isoformat()
+    else:
+        return dt.isoformat(' ')
 
 
 @transformer('timestamp_ms')

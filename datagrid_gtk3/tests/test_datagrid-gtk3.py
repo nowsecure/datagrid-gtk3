@@ -395,16 +395,16 @@ class TransformationsTest(unittest.TestCase):
             self._transform('timestamp', None), '')
         self.assertEqual(
             self._transform('timestamp', 0),
-            '1970-01-01T00:00:00')
+            '1970-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp', 1104537600),
-            '2005-01-01T00:00:00')
+            '2005-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp', -134843428),
-            '1965-09-23T07:29:32')
+            '1965-09-23 07:29:32')
         self.assertEqual(
             self._transform('timestamp', -1),
-            '1969-12-31T23:59:59')
+            '1969-12-31 23:59:59')
 
     def test_timestamp_transform_invalid(self):
         """Return the value as a string when it could not be converted."""
@@ -421,10 +421,10 @@ class TransformationsTest(unittest.TestCase):
         """Return valid datetime with valid miliseconds input."""
         self.assertEqual(
             self._transform('timestamp_ms', 1104537600 * 10 ** 3),
-            '2005-01-01T00:00:00')
+            '2005-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp_ms', -134843428 * 10 ** 3),
-            '1965-09-23T07:29:32')
+            '1965-09-23 07:29:32')
 
     def test_timestamp_Ms_transform(self):
         """Return valid datetime with valid microseconds input."""
@@ -432,10 +432,10 @@ class TransformationsTest(unittest.TestCase):
             self._transform('timestamp_Ms', None), '')
         self.assertEqual(
             self._transform('timestamp_Ms', 1104537600 * 10 ** 6),
-            '2005-01-01T00:00:00')
+            '2005-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp_Ms', -134843428 * 10 ** 6),
-            '1965-09-23T07:29:32')
+            '1965-09-23 07:29:32')
 
     def test_timestamp_apple_transform(self):
         """Return valid datetime with valid apple timestamp input."""
@@ -443,16 +443,16 @@ class TransformationsTest(unittest.TestCase):
             self._transform('timestamp_apple', None), '')
         self.assertEqual(
             self._transform('timestamp_apple', 0),
-            '2001-01-01T00:00:00')
+            '2001-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp_apple', 1104537600),
-            '2036-01-02T00:00:00')
+            '2036-01-02 00:00:00')
         self.assertEqual(
             self._transform('timestamp_apple', -134843428),
-            '1996-09-23T07:29:32')
+            '1996-09-23 07:29:32')
         self.assertEqual(
             self._transform('timestamp_apple', -1),
-            '2000-12-31T23:59:59')
+            '2000-12-31 23:59:59')
 
     def test_timestamp_webkit_transform(self):
         """Return valid datetime with valid webkit timestamp input."""
@@ -460,19 +460,19 @@ class TransformationsTest(unittest.TestCase):
             self._transform('timestamp_webkit', None), '')
         self.assertEqual(
             self._transform('timestamp_webkit', 0),
-            '1601-01-01T00:00:00')
+            '1601-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp_webkit', 1104537600),
-            '1601-01-01T00:18:24')
+            '1601-01-01 00:18:24')
         self.assertEqual(
             self._transform('timestamp_webkit', 1104537600 * 10 ** 6),
-            '1636-01-02T00:00:00')
+            '1636-01-02 00:00:00')
         self.assertEqual(
             self._transform('timestamp_webkit', -134843428 * 10 ** 6),
-            '1596-09-23T07:29:32')
+            '1596-09-23 07:29:32')
         self.assertEqual(
             self._transform('timestamp_webkit', -1),
-            '1600-12-31T23:59:59')
+            '1600-12-31 23:59:59')
 
     def test_timestamp_julian_transform(self):
         """Return valid datetime with valid julian date input."""
@@ -480,16 +480,16 @@ class TransformationsTest(unittest.TestCase):
             self._transform('timestamp_julian', None), '')
         self.assertEqual(
             self._transform('timestamp_julian', 2457093.5),
-            '2015-03-12T00:00:00')
+            '2015-03-12 00:00:00')
         self.assertEqual(
             self._transform('timestamp_julian', 2457093.75),
-            '2015-03-12T06:00:00')
+            '2015-03-12 06:00:00')
         self.assertEqual(
             self._transform('timestamp_julian', 2440587.5),
-            '1970-01-01T00:00:00')
+            '1970-01-01 00:00:00')
         self.assertEqual(
             self._transform('timestamp_julian', 2439283.0),
-            '1966-06-06T12:00:00')
+            '1966-06-06 12:00:00')
 
     def test_timestamp_julian_date_transform(self):
         """Return valid datetime with valid julian date input."""
@@ -554,10 +554,10 @@ class TransformationsTest(unittest.TestCase):
         """Return datetime in isoformat after datetime.datetime input."""
         self.assertEqual(
             self._transform('datetime', datetime.datetime(2015, 3, 11)),
-            '2015-03-11T00:00:00')
+            '2015-03-11 00:00:00')
         self.assertEqual(
             self._transform('datetime', datetime.datetime(2000, 8, 22, 6, 12)),
-            '2000-08-22T06:12:00')
+            '2000-08-22 06:12:00')
 
     def test_bytes_transform(self):
         """Test bytes humanization."""
