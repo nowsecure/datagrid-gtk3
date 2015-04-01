@@ -224,7 +224,7 @@ def datetime_transform(value):
 
 @transformer('timestamp')
 @transformer('timestamp_unix')
-def timestamp_transform(value, date_only=False, isoformat=True):
+def timestamp_transform(value, date_only=False):
     """Transform timestamp to ISO 8601 date format.
 
     :param int value: Unix timestamp
