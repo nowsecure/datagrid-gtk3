@@ -26,10 +26,6 @@ _EXAMPLE_DATABASES = {
     'artist': None,
     'employee': [
         {
-            'column': 'EmployeeId',
-            'type': 'long',
-        },
-        {
             'column': 'LastName',
             'type': 'str',
         },
@@ -48,11 +44,12 @@ _EXAMPLE_DATABASES = {
         {
             'column': 'BirthDate',
             'type': 'long',
-            'encoding': 'datetime'
+            'encoding': 'timestamp'
         },
         {
             'column': 'HireDate',
-            'type': 'str'
+            'type': 'str',
+            'encoding': 'datetime',
         },
         {
             'column': 'Address',

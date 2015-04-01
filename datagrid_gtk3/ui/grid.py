@@ -832,8 +832,9 @@ class DataGridController(object):
         model_date_columns = self.container.combobox_date_columns.get_model()
         # clear all params from previous date column range select
         remove_columns = [column[0] for column in model_date_columns]
-        if active_date_column >= 0:
-            column = model_date_columns[active_date_column][0]
+        # FIXME: Why this is comming as -1 on exampledata for Employee?
+        active_date_column = min(active_date_column, 0)
+        column = model_date_columns[active_date_column][0]
         update_dict = {
             column: {
                 'operator': 'range',
