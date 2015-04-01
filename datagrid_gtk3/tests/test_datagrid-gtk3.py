@@ -4,6 +4,7 @@
 """Data grid test cases."""
 
 import contextlib
+import datetime
 import os
 import unittest
 
@@ -406,11 +407,15 @@ class TransformationsTest(unittest.TestCase):
             '1969-12-31T23:59:59')
 
     def test_timestamp_transform_invalid(self):
-        """Return the value itself when it could not be converted."""
+        """Return the value as a string when it could not be converted."""
         self.assertEqual(
-            self._transform('timestamp', 315532801000), 315532801000)
+            self._transform('timestamp', 315532801000), '315532801000')
         self.assertEqual(
-            self._transform('timestamp', -315532801000), -315532801000)
+            self._transform('timestamp', -315532801000), '-315532801000')
+        self.assertEqual(
+            self._transform('timestamp', 'invalid string'), 'invalid string')
+        self.assertEqual(
+            self._transform('timestamp', []), '[]')
 
     def test_timestamp_ms_transform(self):
         """Return valid datetime with valid miliseconds input."""
@@ -544,6 +549,15 @@ class TransformationsTest(unittest.TestCase):
         self.assertEqual(
             self._transform('timestamp_midnight_Ms', 8493 * 10 ** 6),
             '02:21:33')
+
+    def test_datetime_transform(self):
+        """Return datetime in isoformat after datetime.datetime input."""
+        self.assertEqual(
+            self._transform('datetime', datetime.datetime(2015, 3, 11)),
+            '2015-03-11T00:00:00')
+        self.assertEqual(
+            self._transform('datetime', datetime.datetime(2000, 8, 22, 6, 12)),
+            '2000-08-22T06:12:00')
 
     def test_bytes_transform(self):
         """Test bytes humanization."""

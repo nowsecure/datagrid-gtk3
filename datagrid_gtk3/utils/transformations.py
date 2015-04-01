@@ -1,8 +1,10 @@
 """Data transformation utils."""
 
 import datetime
+import logging
 import HTMLParser
 
+import dateutil.parser
 from gi.repository import (
     GdkPixbuf,
     Gtk,
@@ -11,6 +13,7 @@ from PIL import Image
 
 from datagrid_gtk3.utils import imageutils
 
+logger = logging.getLogger(__name__)
 _transformers = {}
 
 # Total seconds in a day
@@ -206,21 +209,31 @@ def datetime_transform(value):
     :return: the datetime represented in ISO 8601 format
     :rtype: str
     """
+    if value is None:
+        return ''
+
+    if isinstance(value, basestring):
+        try:
+            # Try to parse string as a date
+            value = dateutil.parser.parse(value)
+        except (OverflowError, TypeError, ValueError):
+            pass
+
     # FIXME: Fix all places using 'datetime' for timestamp
     # (either as an int/long or as a convertable str)
     try:
         long_value = long(value)
-    except ValueError:
+    except (TypeError, ValueError):
         pass
     else:
         return timestamp_transform(long_value)
 
-    try:
-        dt = datetime.datetime.utcfromtimestamp(value)
-    except ValueError:
-        return value
+    if not isinstance(value, datetime.datetime):
+        # Convert value to string even if it cannot be parsed as a datetime
+        logger.warning('Not a datetime: %s', value)
+        return str(value)
 
-    return dt.isoformat()
+    return value.isoformat()
 
 
 @transformer('timestamp')
@@ -239,8 +252,10 @@ def timestamp_transform(value, date_only=False):
 
     try:
         dt = datetime.datetime.utcfromtimestamp(value)
-    except ValueError:
-        return value
+    except (TypeError, ValueError):
+        # Convert value to string even if it cannot be parsed as a timestamp
+        logger.warning('Not a timestamp: %s', value)
+        return str(value)
 
     if date_only:
         dt = dt.date()
