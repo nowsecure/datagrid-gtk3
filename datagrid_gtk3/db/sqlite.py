@@ -478,6 +478,7 @@ class SQLiteDataSource(DataSource):
                         data_type = self.STRING_PY_TYPES[
                             self.config[counter]['type']]
                         transform = self.config[counter].get('encoding', None)
+                        options = self.config[counter].get('encoding_options', None)
                         expand = self.config[counter].get('expand', False)
                         visible = self.config[counter].get('visible', True)
                         counter += 1
@@ -486,6 +487,7 @@ class SQLiteDataSource(DataSource):
                         data_type = self.SQLITE_PY_TYPES.get(
                             row[2].upper(), str)
                         transform = None  # TODO: eg. buffer
+                        options = None
                         expand = False
                         visible = True
 
@@ -494,6 +496,7 @@ class SQLiteDataSource(DataSource):
                         'display': display_name,
                         'type': data_type,
                         'transform': transform,
+                        'transform_options': options,
                         'expand': expand,
                         'visible': visible,
                     }
@@ -524,6 +527,7 @@ class SQLiteDataSource(DataSource):
                         'display': '__selected',
                         'type': int,
                         'transform': 'boolean',
+                        'transform_options': 'boolean',
                         'expand': False,
                         'visible': True,
                     }
