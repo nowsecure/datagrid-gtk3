@@ -6,3 +6,4 @@ include requirements.txt
 
 recursive-include *.so
 recursive-include datagrid_gtk3/data *
+recursive-include datagrid_gtk3/ui/glade *
