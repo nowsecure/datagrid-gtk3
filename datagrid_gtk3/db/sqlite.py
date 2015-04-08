@@ -15,11 +15,13 @@ from sqlalchemy import (
 )
 from sqlalchemy.exc import DatabaseError
 from sqlalchemy.sql import (
+    cast,
     alias,
     and_,
     column,
     desc,
     func,
+    or_,
     select,
     table as table_,
 )
@@ -114,6 +116,17 @@ class SQLiteDataSource(DataSource):
         self.selected_table = table_('_selected_columns')
         for col in ['tablename', 'columns']:
             self.selected_table.append_column(column(col))
+
+        # FIXME: Maybe we should use a parameter to generate
+        # search_table if it doesn't exist?
+        search_table = self.table.name + '_search'
+        with closing(sqlite3.connect(self.db_file)) as conn:
+            with closing(conn.cursor()) as cursor:
+                cursor.execute('PRAGMA table_info(%s)' % (search_table, ))
+                if cursor.fetchone():
+                    self.search_table = search_table
+                else:
+                    self.search_table = None
 
     ###
     # Public
@@ -383,15 +396,12 @@ class SQLiteDataSource(DataSource):
         """
         sql_clauses = []
         for key, value in where_params.iteritems():
-            dic = value
             if key == 'search':
                 # full-text search
-                # TODO: make this generic, not specific to vE implementation
-                if dic['param']:
-                    table = self.table.name + '_search'
+                if value['param'] and self.search_table is not None:
                     # XXX: This is to make MATCH be compiled direct here.
                     # We should build this query using sqlalchemy instead
-                    match = column(table).match(value['param'])
+                    match = column(self.search_table).match(value['param'])
 
                     sql = '(%s IN (%s)' % (
                         self.ID_COLUMN,
@@ -400,12 +410,16 @@ class SQLiteDataSource(DataSource):
                         ' FROM  %(table)s WHERE %(match)s)'
                         ' WHERE r > 0 ORDER BY r DESC)' % {
                             "id": self.ID_COLUMN,
-                            "table": table,
+                            "table": self.search_table,
                             "match": _compile(match),
                         }
                     )
                     sql_clauses.append(sql)
-            elif dic['operator'] == 'range':
+                elif value['param']:
+                    clauses = [col.like('%{}%'.format(value['param']))
+                               for col in self.table.columns]
+                    sql_clauses.append(or_(*clauses))
+            elif value['operator'] == 'range':
                 sql_clauses.append(
                     self.table.columns[key].between(*value['param']))
             else:
