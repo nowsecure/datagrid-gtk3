@@ -1,24 +1,31 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Main module of the datagrid_gtk3 package, used to start an example."""
+"""Datagrid example using chinook database."""
 
 import logging
-import sys
 import os
 
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import (
     GObject,
-    Gdk,
     Gtk,
 )
 
-from ui.grid import DataGridContainer, DataGridController
-from db.sqlite import SQLiteDataSource
-from db import EmptyDataSource
+from datagrid_gtk3.utils import (
+    setup_logging_to_stdout,
+    setup_gtk_show_rules_hint,
+)
+from datagrid_gtk3.ui.grid import (
+    DataGridContainer,
+    DataGridController,
+)
+from datagrid_gtk3.db.sqlite import SQLiteDataSource
+from datagrid_gtk3.db import EmptyDataSource
 
 logger = logging.getLogger(__name__)
+
 
 # TODO: Add config for all tables
 _EXAMPLE_DATABASES = {
@@ -89,44 +96,12 @@ _EXAMPLE_DATABASES = {
 }
 
 
-def setup_logging():
-    """Sets up logging to std out."""
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    handler.setFormatter(formatter)
-
-    root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
-    root.addHandler(handler)
-
-
 def main():
     """Example usage of the datagrid_gtk3 package."""
     logger.info("Starting a datagrid_gtk3 example.")
 
-    # The code is here to show rules hint on the treeview for our tests. This
-    # is something that, on gtk3, the theme decides how (and if) to display it.
-    # Since it's on main, it will only show on our testing code. This is
-    # something that the application needs to decide.
-    style_provider = Gtk.CssProvider()
-    style_provider.load_from_data("""
-        GtkTreeView row:nth-child(even) {
-            background-color: shade(@base_color, 1.0);
-        }
-        GtkTreeView row:nth-child(odd) {
-            background-color: shade(@base_color, 0.95);
-        }
-    """)
-    Gtk.StyleContext.add_provider_for_screen(
-        Gdk.Screen.get_default(),
-        style_provider,
-        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-
-    db_path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                           os.path.pardir, 'example_data', 'chinook.sqlite')
+    db_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), 'chinook.sqlite')
 
     win = Gtk.Window()
     datagrid_container = DataGridContainer(win)
@@ -168,9 +143,13 @@ def main():
     tables.set_default_size(300, 400)
     GObject.idle_add(tables.show_all)
 
-    Gtk.main()
+    try:
+        Gtk.main()
+    except KeyboardInterrupt:
+        Gtk.main_quit()
 
 
 if __name__ == '__main__':
-    setup_logging()
+    setup_logging_to_stdout()
+    setup_gtk_show_rules_hint()
     main()
