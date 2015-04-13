@@ -55,8 +55,8 @@ _EXAMPLE_DATABASES = {
         },
         {
             'column': 'HireDate',
-            'type': 'str',
-            'encoding': 'datetime',
+            'type': 'long',
+            'encoding': 'timestamp',
         },
         {
             'column': 'Address',
