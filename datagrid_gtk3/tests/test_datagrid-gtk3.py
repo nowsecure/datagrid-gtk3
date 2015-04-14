@@ -24,7 +24,6 @@ from datagrid_gtk3.ui.grid import (
     DataGridModel,
     DataGridView,
     OptionsPopup,
-    default_get_full_path,
 )
 from datagrid_gtk3.utils import imageutils, transformations
 from datagrid_gtk3.utils.transformations import html_transform
@@ -598,8 +597,7 @@ class TransformationsTest(unittest.TestCase):
 
     def test_image_transform_with_border(self):
         """Make sure the right functions are called to transform the image."""
-        image = Image.open(
-            default_get_full_path('icons/image.png'))
+        image = Image.open(imageutils.get_icon_filename(['image'], 48))
         image.load()
 
         _add_border_func = imageutils.add_border
@@ -629,11 +627,11 @@ class TransformationsTest(unittest.TestCase):
 
             open_.return_value = image
             self.assertIsInstance(
-                self._transform('image', 'file://xxx'),
+                self._transform('image', 'file:///xxx'),
                 GdkPixbuf.Pixbuf)
 
             thumbnail.assert_called_once_with((123, 123), Image.BICUBIC)
-            open_.assert_called_once_with('xxx')
+            open_.assert_called_once_with('/xxx')
             add_border.assert_called_once_with(image, border_size=8)
             add_drop_shadow.assert_called_once_with(
                 image, border_size=10, offset=(4, 4))
@@ -642,8 +640,7 @@ class TransformationsTest(unittest.TestCase):
     @mock.patch('datagrid_gtk3.utils.imageutils.add_border')
     def test_image_transform_without_border(self, add_border, add_drop_shadow):
         """Make sure the right functions are called to transform the image."""
-        image = Image.open(
-            default_get_full_path('icons/image.png'))
+        image = Image.open(imageutils.get_icon_filename(['unknown'], 48))
         image.load()
 
         add_border.return_value = image
@@ -657,11 +654,11 @@ class TransformationsTest(unittest.TestCase):
                 mock.patch.object(image, 'thumbnail')) as (open_, thumbnail):
             open_.return_value = image
             self.assertIsInstance(
-                self._transform('image', 'file://xxx'),
+                self._transform('image', 'file:///xxx'),
                 GdkPixbuf.Pixbuf)
 
             thumbnail.assert_called_once_with((123, 123), Image.BICUBIC)
-            open_.assert_called_once_with('xxx')
+            open_.assert_called_once_with('/xxx')
             # This is because of a PIL issue. See
             # datagrid_gtk3.utils.transformations.image_transform for more
             # details
