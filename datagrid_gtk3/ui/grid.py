@@ -616,6 +616,8 @@ class DataGridController(object):
             self.model.image_max_size = 100.0
             self.model.image_draw_border = True
         elif new_view in [OptionsPopup.VIEW_TREE, OptionsPopup.VIEW_FLAT]:
+            # Changing view from/to flat will make expanded_ids have no meaning
+            self.tree_view.expanded_ids.clear()
             self.view = self.tree_view
             self.icon_view.set_model(None)
             self.model.image_max_size = 24.0
@@ -953,8 +955,8 @@ class DataGridView(Gtk.TreeView):
         self.active_sort_column = None
         self.active_sort_column_order = None
 
+        self.expanded_ids = set()
         self._expandable_ids = set()
-        self._expanded_ids = set()
         self._all_expanded = False
         self._block_all_expanded = False
 
@@ -975,9 +977,9 @@ class DataGridView(Gtk.TreeView):
 
         self._expandable_ids.clear()
         # After refreshing the model, some rows may not be present anymore.
-        # Let self._expanded_ids be constructed again by the events bellow
-        expanded_ids = self._expanded_ids.copy()
-        self._expanded_ids.clear()
+        # Let self.expanded_ids be constructed again by the events bellow
+        expanded_ids = self.expanded_ids.copy()
+        self.expanded_ids.clear()
 
         self._block_all_expanded = True
         # FIXME: This is very optimized, but on some situations (e.g. all paths
@@ -1042,7 +1044,7 @@ class DataGridView(Gtk.TreeView):
         :type path: :class:`Gtk.TreePath`
         """
         row_id = self.model.get_value(iter_, self.model.id_column_idx)
-        self._expanded_ids.add(row_id)
+        self.expanded_ids.add(row_id)
         self._check_all_expanded()
 
     def on_row_collapsed(self, treeview, iter_, path):
@@ -1057,7 +1059,7 @@ class DataGridView(Gtk.TreeView):
         :param path: the path pointing to the collapsed row
         :type path: :class:`Gtk.TreePath`
         """
-        self._expanded_ids.discard(
+        self.expanded_ids.discard(
             self.model.get_value(iter_, self.model.id_column_idx))
         self._check_all_expanded()
 
@@ -1156,7 +1158,7 @@ class DataGridView(Gtk.TreeView):
             return
 
         old_all_expanded = self._all_expanded
-        self._all_expanded = self._expanded_ids == self._get_expandable_ids()
+        self._all_expanded = self.expanded_ids == self._get_expandable_ids()
         if self._all_expanded != old_all_expanded:
             self.emit('all-expanded', self._all_expanded)
 
