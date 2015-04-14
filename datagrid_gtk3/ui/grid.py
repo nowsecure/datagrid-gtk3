@@ -19,7 +19,6 @@ from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
 from datagrid_gtk3.utils.transformations import get_transformer
 
-GRID_LABEL_MAX_LENGTH = 100
 _MEDIA_FILES = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     os.pardir,
@@ -1564,6 +1563,7 @@ class DataGridModel(GenericTreeModel):
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
 
+    STRING_MAX_LENGTH = 100
     IMAGE_PREFIX = 'file://'
     IMAGE_BORDER_SIZE = 6
     IMAGE_SHADOW_SIZE = 6
@@ -1764,7 +1764,7 @@ class DataGridModel(GenericTreeModel):
                     value = self.get_media_callback(value)
         elif transformer_name in ['string', 'html']:
             transformer_kwargs.update(dict(
-                max_length=GRID_LABEL_MAX_LENGTH, oneline=True,
+                max_length=self.STRING_MAX_LENGTH, oneline=True,
                 decode_fallback=self.decode_fallback,
             ))
 
