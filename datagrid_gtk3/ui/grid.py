@@ -108,12 +108,13 @@ class OptionsPopup(Gtk.Window):
             self._scrolled_window.remove(child)
 
         vbox = Gtk.VBox()
-        for switch in self._get_view_options():
-            vbox.pack_start(switch, expand=False, fill=False,
+        combo = self._get_view_options()
+        if combo is not None:
+            vbox.pack_start(combo, expand=False, fill=False,
                             padding=self.OPTIONS_PADDING)
-
-        vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-                        expand=True, fill=True, padding=self.OPTIONS_PADDING)
+            vbox.pack_start(
+                Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
+                expand=True, fill=True, padding=self.OPTIONS_PADDING)
 
         for switch in self._get_visibility_options():
             vbox.pack_start(switch, expand=False, fill=False,
@@ -207,6 +208,10 @@ class OptionsPopup(Gtk.Window):
                for c in self._controller.model.columns):
             iters[self.VIEW_ICON] = model.append(("Icon View", self.VIEW_ICON))
 
+        # Avoid displaying the combo if there's only one option
+        if len(iters) == 1:
+            return None
+
         combo = Gtk.ComboBox()
         combo.set_model(model)
         renderer = Gtk.CellRendererText()
@@ -225,7 +230,7 @@ class OptionsPopup(Gtk.Window):
                 self._controller.view, ))
 
         combo.connect('changed', self.on_combo_view_changed)
-        yield combo
+        return combo
 
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
