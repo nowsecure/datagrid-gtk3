@@ -513,6 +513,7 @@ class DataGridController(object):
             for widget in widgets:
                 widget.hide()
         else:
+            combox_date_cols.set_active(0)
             for widget in widgets:
                 widget.show()
 
