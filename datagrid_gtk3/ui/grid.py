@@ -1595,9 +1595,13 @@ class DataGridModel(GenericTreeModel):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
 
-        self.display_columns = {
-            col['name'] for col in self.columns
-            if col['visible'] and not col['name'].startswith('__')}
+        selected_columns = self.data_source.get_selected_columns()
+        if selected_columns is not None:
+            self.display_columns = set(selected_columns)
+        else:
+            self.display_columns = {
+                col['name'] for col in self.columns
+                if col['visible'] and not col['name'].startswith('__')}
 
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
