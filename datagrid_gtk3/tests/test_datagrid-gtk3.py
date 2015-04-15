@@ -676,15 +676,17 @@ class TransformationsTest(unittest.TestCase):
         transformations.register_transformer('test', test_transform)
         try:
             self.assertEqual(self._transform('test', 'x'), 'X')
-            self.datagrid_model.data_source.config = [dict(encoding_options=2)]
-            self.assertEqual(self._transform('test', 'x'), 'XX')
+            self.assertEqual(
+                self._transform('test', 'x', transform_options=2), 'XX'
+            )
         finally:
             transformations.unregister_transformer('test')
             self.datagrid_model.data_source.config = None
 
-    def _transform(self, transform_type, value):
-        self.datagrid_model.columns = [
-            {'name': transform_type, 'transform': transform_type}]
+    def _transform(self, transform_type, value, **extra_options):
+        config = {'name': transform_type, 'transform': transform_type}
+        config.update(extra_options)
+        self.datagrid_model.columns = [config]
         return self.datagrid_model.get_formatted_value(value, 0)
 
 
