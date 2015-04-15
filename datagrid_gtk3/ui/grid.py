@@ -1725,7 +1725,7 @@ class DataGridModel(GenericTreeModel):
         transformer = get_transformer(transformer_name)
         transformer_kwargs = {}
 
-        if value is not None:
+        if value is not None and 'type' in col_dict:
             # Try enforcing value type
             type_ = col_dict['type']
             if not isinstance(
@@ -1785,7 +1785,7 @@ class DataGridModel(GenericTreeModel):
                 decode_fallback=self.decode_fallback,
             ))
 
-        custom_options = col_dict['transform_options']
+        custom_options = col_dict.get('transform_options')
         if custom_options:
             transformer_kwargs['options'] = custom_options
 
