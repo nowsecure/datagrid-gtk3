@@ -338,28 +338,6 @@ class DataGridContainer(UIFile):
         UIFile.__init__(self, self.UI_FNAME)
 
 
-def default_decode_fallback(obj):
-    """Called for decoding an object to a string when `unicode(obj)` fails.
-
-    :param obj: Any python object.
-    :rtype: unicode
-    """
-    return repr(obj)
-
-
-def default_get_full_path(relative_path):
-    """Returns a full paths to a file when
-    given a relative path, or None if the file isn't available.
-
-    :param relative_path: The relative path to a file.
-    :type relative_path: str
-    :rtype: str or None
-    """
-    full_path = os.path.join(_MEDIA_FILES, relative_path)
-    if os.path.exists(full_path):
-        return full_path
-
-
 class DataGridController(object):
 
     """UI controls to manipulate datagrid model/view.
@@ -393,15 +371,11 @@ class DataGridController(object):
                  has_checkboxes=True, decode_fallback=None,
                  get_full_path=None):
         """Setup UI controls and load initial data view."""
-        if decode_fallback is None:
-            decode_fallback = default_decode_fallback
-        if get_full_path is None:
-            get_full_path = default_get_full_path
-
         self.extra_filter_widgets = {}
         self.container = container
 
-        self.decode_fallback = decode_fallback
+        self.decode_fallback = (
+            decode_fallback if decode_fallback else lambda o: repr(r))
         self.get_full_path = get_full_path
         self.selected_record_callback = selected_record_callback
         self.activated_icon_callback = activated_icon_callback
@@ -441,12 +415,18 @@ class DataGridController(object):
         self.options_popup.connect('view-changed', self.on_popup_view_changed)
 
         # date range widgets
-        self.container.image_start_date.set_from_file(
-            get_full_path('icons/calendar22.png')
-        )
-        self.container.image_end_date.set_from_file(
-            get_full_path('icons/calendar22.png')
-        )
+        icon_theme = Gtk.IconTheme.get_default()
+        for icon in ['calendar', 'stock_calendar']:
+            if icon_theme.has_icon(icon):
+                break
+        else:
+            # Should never happen, just a precaution
+            raise Exception("No suitable calendar icon found on theme")
+
+        for image in [self.container.image_start_date,
+                      self.container.image_end_date]:
+            image.set_from_icon_name(icon, Gtk.IconSize.BUTTON)
+
         self.date_start = popupcal.DateEntry(self.container.window)
         self.date_start.set_editable(False)
         self.date_start.set_sensitive(False)
@@ -1765,8 +1745,18 @@ class DataGridModel(GenericTreeModel):
 
             if value.startswith(self.IMAGE_PREFIX):
                 value = value[len(self.IMAGE_PREFIX):]
-            else:
+
+            if not value:
+                # Force fallback in this case
                 value = None
+            elif not os.path.isabs(value):
+                if self.get_media_callback is None:
+                    logger.warning(
+                        "Don't know how to access the relative path '%s'. "
+                        "Try passing get_full_path to controller.", value)
+                    value = None
+                else:
+                    value = self.get_media_callback(value)
         elif transformer_name in ['string', 'html']:
             transformer_kwargs.update(dict(
                 max_length=GRID_LABEL_MAX_LENGTH, oneline=True,

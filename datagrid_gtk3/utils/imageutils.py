@@ -19,6 +19,22 @@ mimetypes.init()
 _drop_shadows_cache = {}
 
 
+def get_icon_filename(choose_list, size):
+    """Get a theme icon filename.
+
+    :param list choose_list: the list of icon names to choose from.
+        The first existing icon will be returned.
+    :param int size: size of the icon, to be passed to
+        :class:`Gtk.IconTheme.choose_icon`
+    :return: the path to the icon
+    :rtype: str
+    """
+    icon_theme = Gtk.IconTheme.get_default()
+    icon = icon_theme.choose_icon(choose_list, size,
+                                  Gtk.IconLookupFlags.NO_SVG)
+    return icon and icon.get_filename()
+
+
 def get_icon_for_file(filename, size):
     """Get icon for filename mimetype.
 
@@ -50,10 +66,7 @@ def get_icon_for_file(filename, size):
     icon_list.append('%s-x-generic' % (mimetype, ))
     icon_list.append('unknown')
 
-    icon_theme = Gtk.IconTheme.get_default()
-    icon = icon_theme.choose_icon(icon_list, size, Gtk.IconLookupFlags.NO_SVG)
-
-    return icon.get_filename()
+    return get_icon_filename(icon_list, size)
 
 
 def image2pixbuf(image):
