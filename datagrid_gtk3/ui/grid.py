@@ -363,9 +363,6 @@ class DataGridController(object):
 
     """
 
-    MIN_TIMESTAMP = 0  # 1970
-    MAX_TIMESTAMP = 2147485547  # 2038
-
     def __init__(self, container, data_source, selected_record_callback=None,
                  activated_icon_callback=None, activated_row_callback=None,
                  has_checkboxes=True, decode_fallback=None,
@@ -802,12 +799,12 @@ class DataGridController(object):
             # TODO: restore use of time as well as date in UI
             start_timestamp = self._get_timestamp_from_str(start_date_str)
         else:
-            start_timestamp = self.MIN_TIMESTAMP
+            start_timestamp = None
         if end_date:
             end_date_str = end_date + ' 23:59'
             end_timestamp = self._get_timestamp_from_str(end_date_str)
         else:
-            end_timestamp = self.MAX_TIMESTAMP
+            end_timestamp = None
         active_date_column = self.container.combobox_date_columns.get_active()
         model_date_columns = self.container.combobox_date_columns.get_model()
         # clear all params from previous date column range select
@@ -815,12 +812,27 @@ class DataGridController(object):
         # FIXME: Why this is comming as -1 on exampledata for Employee?
         active_date_column = min(active_date_column, 0)
         column = model_date_columns[active_date_column][0]
-        update_dict = {
-            column: {
-                'operator': 'range',
-                'param': (start_timestamp, end_timestamp)
+
+        if start_timestamp is not None and end_timestamp is not None:
+            operator = 'range'
+            param = (start_timestamp, end_timestamp)
+        elif start_timestamp is not None:
+            operator = '>='
+            param = start_timestamp
+        elif end_timestamp is not None:
+            operator = '<='
+            param = end_timestamp
+        else:
+            operator = None
+            param = None
+
+        update_dict = {}
+        if operator is not None:
+            update_dict[column] = {
+                'operator': operator,
+                'param': param,
             }
-        }
+
         self._refresh_view(update_dict, remove_columns)
 
     ###
@@ -1563,8 +1575,6 @@ class DataGridModel(GenericTreeModel):
     IMAGE_BORDER_SIZE = 6
     IMAGE_SHADOW_SIZE = 6
     IMAGE_SHADOW_OFFSET = 2
-    MIN_TIMESTAMP = 0  # 1970
-    MAX_TIMESTAMP = 2147485547  # 2038
 
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
