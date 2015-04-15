@@ -1593,12 +1593,14 @@ class DataGridModel(GenericTreeModel):
             self.row_id_mapper[row.data[self.id_column_idx]] = row
             parent_row.append(row)
 
-            # FIXME: Non-hierarchical data need this to display the new row,
-            # but hierarchical ones not only will work without this, but will
-            # produce warnings if we try to call this for them.
+            # Non-hierarchical data need this to call self.row_inserted
+            # so the treemodel will know about the new rows.
+            # For hierarchical, those paths/iters already exists, they
+            # are just lazy-loaded when neede (i.e. when expanding the parent)
             if not is_tree:
+                parent_row.children_len += 1
                 path = Gtk.TreePath(row.path)
-                self.row_inserted(path, self.get_iter(path))
+                self.row_inserted(path, self.create_tree_iter(row.path))
 
         return True
 
@@ -1810,9 +1812,9 @@ class DataGridModel(GenericTreeModel):
 
     def _get_row_by_path(self, iter_):
         def get_row_by_iter_aux(iter_aux, rows):
+            self._ensure_children_is_loaded(rows)
             if len(iter_aux) == 1:
                 row = rows[iter_aux[0]]
-                self._ensure_children_is_loaded(row)
                 return row
             return get_row_by_iter_aux(iter_aux[1:], rows[iter_aux[0]])
 
@@ -1889,7 +1891,7 @@ class DataGridModel(GenericTreeModel):
             rows = self._get_row_by_path(parentref)
             next_value = parentref + (rowref[-1] + 1, )
 
-        if not next_value[-1] < len(rows):
+        if not next_value[-1] < rows.children_len:
             return None
 
         return next_value
@@ -1900,21 +1902,23 @@ class DataGridModel(GenericTreeModel):
             return (0, )
 
         parent_row = self._get_row_by_path(rowref)
-        if not len(parent_row):
+        if not parent_row.children_len:
             return None
 
         return rowref + (0, )
 
     def on_iter_has_child(self, rowref):
         """Return true if this node has children."""
-        return bool(self._get_row_by_path(rowref))
+        row = self._get_row_by_path(rowref)
+        return row.children_len > 0
 
     def on_iter_n_children(self, rowref):
         """Return the number of children of this node."""
         if rowref is None:
             return len(self.rows)
 
-        return len(self._get_row_by_path(rowref))
+        row = self._get_row_by_path(rowref)
+        return row.children_len
 
     def on_iter_nth_child(self, parent, n):
         """Return the nth child of this node."""
@@ -1924,7 +1928,7 @@ class DataGridModel(GenericTreeModel):
         else:
             rows = self._get_row_by_path(parent)
 
-        if not 0 <= n < len(rows):
+        if not 0 <= n < rows.children_len:
             return None
 
         return parent + (n, )
