@@ -90,7 +90,6 @@ class SQLiteDataSource(DataSource):
         'float': float,
         'buffer': buffer
     }
-    ID_COLUMN = 'rowid'
 
     def __init__(self, db_file, table=None, update_table=None, config=None,
                  ensure_selected_column=True, display_all=False, query=None,
