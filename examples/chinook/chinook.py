@@ -135,7 +135,8 @@ def main():
             table_name, config = model[iterator]
             controller.bind_datasource(SQLiteDataSource(
                 db_path, table_name, config=config,
-                ensure_selected_column=False, display_all=True
+                ensure_selected_column=False, display_all=True,
+                persist_columns_visibility=False
             ))
     table_list.get_selection().connect("changed", select_table)
 

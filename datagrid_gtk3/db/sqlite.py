@@ -69,6 +69,8 @@ class SQLiteDataSource(DataSource):
         the __selected column.
     :param bool display_all: Whether or not all columns should be displayed.
     :param str query: Full custom query to be used instead of the table name.
+    :param bool persist_columns_visibility: Weather we should persist
+        the columns visibility on the database.
     """
 
     MAX_RECS = 100
@@ -91,7 +93,8 @@ class SQLiteDataSource(DataSource):
     ID_COLUMN = 'rowid'
 
     def __init__(self, db_file, table=None, update_table=None, config=None,
-                 ensure_selected_column=True, display_all=False, query=None):
+                 ensure_selected_column=True, display_all=False, query=None,
+                 persist_columns_visibility=True):
         """Process database column info."""
         super(SQLiteDataSource, self).__init__()
 
@@ -101,6 +104,7 @@ class SQLiteDataSource(DataSource):
         self.query = query
         if query:
             logger.debug("Custom SQL: %s", query)
+        self._persist_columns_visibility = persist_columns_visibility
         self._ensure_selected_column = ensure_selected_column
         self.display_all = display_all
         # FIXME: Use sqlalchemy for queries using update_table
@@ -113,9 +117,9 @@ class SQLiteDataSource(DataSource):
         for col in self.columns:
             self.table.append_column(column(col['name']))
 
-        self.selected_table = table_('_selected_columns')
+        self.visible_columns_table = table_('__visible_columns')
         for col in ['tablename', 'columns']:
-            self.selected_table.append_column(column(col))
+            self.visible_columns_table.append_column(column(col))
 
         # FIXME: Maybe we should use a parameter to generate
         # search_table if it doesn't exist?
@@ -285,69 +289,56 @@ class SQLiteDataSource(DataSource):
             # TODO log error if more than one
             return res[0]
 
-    def get_selected_columns(self):
-        """Get selected columns info from DB.
+    def get_visible_columns(self):
+        """Get visible columns info from DB.
 
         :returns: list of column names
         :rtype: list or None
         """
-        where = self.selected_table.columns['tablename'] == self.table.name
-        columns = [self.selected_table.columns['columns']]
+        if not self._persist_columns_visibility:
+            return None
+
+        where = (self.visible_columns_table.columns['tablename'] ==
+                 self.table.name)
+        columns = [self.visible_columns_table.columns['columns']]
 
         with closing(sqlite3.connect(self.db_file)) as conn:
             conn.row_factory = sqlite3.Row  # Access columns by name
             try:
                 result = list(
-                    self.select(conn, self.selected_table,
+                    self.select(conn, self.visible_columns_table,
                                 columns, where=where))
             except sqlite3.OperationalError as err:
                 # FIXME: When will this happen?
                 logger.warn(str(err))
-                return
+                return None
+
+        if not result:
+            return None
 
         return result[0][0].split(',')
-        # ^^ 2nd column of returned row; first column is table name
 
-    def update_selected_columns(self, columns):
-        """Update the ``_selected_columns`` table.
+    def set_visible_columns(self, columns):
+        """Update the *__visible_columns* table.
 
         Updates the table in the DB that stores info about which columns have
         been selected.  This is used to exclude unwanted columns from a report.
 
         :param list columns: list of column names to display
         """
-        # FIXME: Use sqlalchemy to construct the queries here
+        if not self._persist_columns_visibility:
+            return
+
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
-                create_sql = (
-                    'CREATE TABLE IF NOT EXISTS _selected_columns '
-                    '(tablename TEXT, columns TEXT)'
-                )
-                cursor.execute(create_sql)
-                if not columns:
-                    update_sql = (
-                        'DELETE FROM _selected_columns WHERE tablename=?'
-                    )
-                    params = (self.table.name,)
-                else:
-                    select_sql = (
-                        'SELECT * FROM _selected_columns WHERE tablename=?'
-                    )
-                    cursor.execute(select_sql, (self.table.name, ))
-                    row = cursor.fetchone()
-                    if not row:
-                        update_sql = (
-                            'INSERT INTO _selected_columns '
-                            '(tablename, columns) VALUES (?, ?)'
-                        )
-                        params = (self.table.name, ','.join(columns))
-                    else:
-                        update_sql = (
-                            'UPDATE _selected_columns '
-                            'SET columns=? WHERE tablename=?'
-                        )
-                        params = (','.join(columns), self.table.name)
-                cursor.execute(update_sql, params)
+                table = self.visible_columns_table.name
+                cursor.execute(
+                    'CREATE TABLE IF NOT EXISTS %s '
+                    '(tablename TEXT PRIMARY KEY, columns TEXT)' % (table, ))
+                cursor.execute(
+                    'INSERT OR REPLACE INTO %s (tablename, columns) '
+                    'VALUES (?, ?)' % (table, ),
+                    (self.table.name, ','.join(columns)))
                 conn.commit()
 
     def select(self, conn, table, columns=None, where=None,

@@ -94,11 +94,10 @@ class SQLiteDataSourceTest(unittest.TestCase):
         ids = self.datasource.get_all_record_ids(param)
         self.assertEqual(ids, [2, 3, 4])
 
-    def test_selected_columns(self):
-        """Set selected columns and ensure they're persisted."""
-        self.datasource.update_selected_columns(['last_name'])
-        cols = self.datasource.get_selected_columns()
-        self.assertEqual(cols, ['last_name'])
+    def test_visible_columns(self):
+        """Set visible columns and ensure they're persisted."""
+        self.datasource.set_visible_columns(['last_name'])
+        self.assertEqual(self.datasource.get_visible_columns(), ['last_name'])
 
     def test_get_single_record(self):
         """Retrieve a single record as a tuple of values."""

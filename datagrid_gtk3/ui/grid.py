@@ -600,7 +600,7 @@ class DataGridController(object):
         else:
             self.model.display_columns.discard(name)
 
-        self.model.data_source.update_selected_columns(
+        self.model.data_source.set_visible_columns(
             self.model.display_columns)
         self.view.refresh()
 
@@ -1595,7 +1595,7 @@ class DataGridModel(GenericTreeModel):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
 
-        selected_columns = self.data_source.get_selected_columns()
+        selected_columns = self.data_source.get_visible_columns()
         if selected_columns is not None:
             self.display_columns = set(selected_columns)
         else:
