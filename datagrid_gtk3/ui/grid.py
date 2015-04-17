@@ -1725,6 +1725,18 @@ class DataGridModel(GenericTreeModel):
         transformer = get_transformer(transformer_name)
         transformer_kwargs = {}
 
+        if value is not None and 'type' in col_dict:
+            # Try enforcing value type
+            type_ = col_dict['type']
+            if not isinstance(
+                value, basestring if type_ in (str, unicode) else type_
+            ):
+                try:
+                    value = col_dict['type'](value)
+                except (ValueError, TypeError):
+                    logger.warn('Could not enforce type "%s" for "%r"',
+                                col_dict['type'].__name__, value)
+
         if transformer is None:
             logger.warning("No transformer found for %s", transformer_name)
             return value
@@ -1783,7 +1795,7 @@ class DataGridModel(GenericTreeModel):
                 decode_fallback=self.decode_fallback,
             ))
 
-        custom_options = col_dict['transform_options']
+        custom_options = col_dict.get('transform_options')
         if custom_options:
             transformer_kwargs['options'] = custom_options
 

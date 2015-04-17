@@ -55,7 +55,7 @@ class DataGridControllerTest(unittest.TestCase):
                 {'column': 'Last name', 'type': 'str'},
                 {'column': 'Age', 'type': 'int'},
                 {'column': 'Start', 'type': 'int', 'encoding': 'timestamp'},
-                {'column': 'Image', 'type': 'int', 'encoding': 'image'},
+                {'column': 'Image', 'type': 'buffer', 'encoding': 'image'},
             ]
         )
         self.datasource.MAX_RECS = 2  # 2 records per page
