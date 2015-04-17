@@ -1,11 +1,29 @@
 =============
-datagrid-gtk3
+datagrid_gtk3
 =============
 
-MVC framework for working with the GTK3 TreeView widget.
+MVC framework for working with the Gtk3 TreeView widget.
+Includes classes for file browsing and displaying SQLite databases.
 
+Screenshots
+===========
 
-.. figure:: docs/datagrid_gtk3_example.png
-    :alt: datagrid_gtk3 screenshot
+.. figure:: docs/screenshots/table_view.png
+    :alt: Table view
 
-    datagrid_gtk3 in action showing a table from a sqlite database.
+    Displaying a table from an SQLite database with text filtering.
+
+.. figure:: docs/screenshots/icon_view.png
+    :alt: Icon view
+
+    Browsing the file system in icon view mode with thumbnails.
+
+.. figure:: docs/screenshots/row_selection.png
+    :alt: Row selection
+
+    Persistent row selection in SQLite databases.
+
+.. figure:: docs/screenshots/date_ranges.png
+    :alt: Date ranges.
+
+    Displaying a table from an SQLite database with date range filtering.

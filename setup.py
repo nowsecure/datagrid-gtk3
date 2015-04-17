@@ -88,7 +88,7 @@ setup(
     install_requires=requirements,
     dependency_links=dependency_links,
     zip_safe=False,
-    keywords='mvc sqlite gtk grid',
+    keywords='mvc sqlite gtk gtk3 grid',
     classifiers=[
         'Natural Language :: English',
         "Programming Language :: Python :: 2",
