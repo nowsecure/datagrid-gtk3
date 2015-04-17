@@ -111,13 +111,15 @@ class OptionsPopup(Gtk.Window):
         if combo is not None:
             vbox.pack_start(combo, expand=False, fill=False,
                             padding=self.OPTIONS_PADDING)
-            vbox.pack_start(
-                Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-                expand=True, fill=True, padding=self.OPTIONS_PADDING)
 
-        for switch in self._get_visibility_options():
-            vbox.pack_start(switch, expand=False, fill=False,
-                            padding=self.OPTIONS_PADDING)
+        if not isinstance(self._controller.view, DataGridIconView):
+            if combo is not None:
+                vbox.pack_start(
+                    Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
+                    expand=True, fill=True, padding=self.OPTIONS_PADDING)
+            for switch in self._get_visibility_options():
+                vbox.pack_start(switch, expand=False, fill=False,
+                                padding=self.OPTIONS_PADDING)
 
         self._scrolled_window.add(vbox)
 
