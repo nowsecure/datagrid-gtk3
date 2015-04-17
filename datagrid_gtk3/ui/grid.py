@@ -19,7 +19,6 @@ from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
 from datagrid_gtk3.utils.transformations import get_transformer
 
-GRID_LABEL_MAX_LENGTH = 100
 _MEDIA_FILES = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     os.pardir,
@@ -108,12 +107,13 @@ class OptionsPopup(Gtk.Window):
             self._scrolled_window.remove(child)
 
         vbox = Gtk.VBox()
-        for switch in self._get_view_options():
-            vbox.pack_start(switch, expand=False, fill=False,
+        combo = self._get_view_options()
+        if combo is not None:
+            vbox.pack_start(combo, expand=False, fill=False,
                             padding=self.OPTIONS_PADDING)
-
-        vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-                        expand=True, fill=True, padding=self.OPTIONS_PADDING)
+            vbox.pack_start(
+                Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
+                expand=True, fill=True, padding=self.OPTIONS_PADDING)
 
         for switch in self._get_visibility_options():
             vbox.pack_start(switch, expand=False, fill=False,
@@ -207,6 +207,10 @@ class OptionsPopup(Gtk.Window):
                for c in self._controller.model.columns):
             iters[self.VIEW_ICON] = model.append(("Icon View", self.VIEW_ICON))
 
+        # Avoid displaying the combo if there's only one option
+        if len(iters) == 1:
+            return None
+
         combo = Gtk.ComboBox()
         combo.set_model(model)
         renderer = Gtk.CellRendererText()
@@ -225,7 +229,7 @@ class OptionsPopup(Gtk.Window):
                 self._controller.view, ))
 
         combo.connect('changed', self.on_combo_view_changed)
-        yield combo
+        return combo
 
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
@@ -506,6 +510,7 @@ class DataGridController(object):
             for widget in widgets:
                 widget.hide()
         else:
+            combox_date_cols.set_active(0)
             for widget in widgets:
                 widget.show()
 
@@ -592,7 +597,7 @@ class DataGridController(object):
         else:
             self.model.display_columns.discard(name)
 
-        self.model.data_source.update_selected_columns(
+        self.model.data_source.set_visible_columns(
             self.model.display_columns)
         self.view.refresh()
 
@@ -1571,6 +1576,7 @@ class DataGridModel(GenericTreeModel):
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
 
+    STRING_MAX_LENGTH = 100
     IMAGE_PREFIX = 'file://'
     IMAGE_BORDER_SIZE = 6
     IMAGE_SHADOW_SIZE = 6
@@ -1599,9 +1605,13 @@ class DataGridModel(GenericTreeModel):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
 
-        self.display_columns = {
-            col['name'] for col in self.columns
-            if col['visible'] and not col['name'].startswith('__')}
+        selected_columns = self.data_source.get_visible_columns()
+        if selected_columns is not None:
+            self.display_columns = set(selected_columns)
+        else:
+            self.display_columns = {
+                col['name'] for col in self.columns
+                if col['visible'] and not col['name'].startswith('__')}
 
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
@@ -1769,7 +1779,7 @@ class DataGridModel(GenericTreeModel):
                     value = self.get_media_callback(value)
         elif transformer_name in ['string', 'html']:
             transformer_kwargs.update(dict(
-                max_length=GRID_LABEL_MAX_LENGTH, oneline=True,
+                max_length=self.STRING_MAX_LENGTH, oneline=True,
                 decode_fallback=self.decode_fallback,
             ))
 

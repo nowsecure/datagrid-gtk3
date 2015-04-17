@@ -20,7 +20,8 @@ TEST_DATA = {
              'file://' + get_icon_filename(['image'], 48)),
             (2, 'Steve', 'Austin', 35, 1318291200,
              'file://' + get_icon_filename(['calendar'], 48)),
-            (3, 'Oscar', 'Goldman', 50, 1349913600, None)
+            (3, 'Oscar', 'Goldman', 50, 1349913600, None),
+            (4, 'Monica', 'Goldman', 40, 1344953660, None),
         ]
     },
     'files': {

@@ -57,7 +57,7 @@ class DataSource(object):
         self.children_len_column_idx = None
         self.flat_column_idx = None
 
-    def get_selected_columns(self):
+    def get_visible_columns(self):
         return []
 
     def load(self, params=None):
