@@ -70,7 +70,7 @@ class SQLiteDataSource(DataSource):
     :param bool display_all: Whether or not all columns should be displayed.
     :param str query: Full custom query to be used instead of the table name.
     :param bool persist_columns_visibility: Weather we should persist
-        the columns visibility on the database.
+        the columns visibility in the database.
     """
 
     MAX_RECS = 100
@@ -120,16 +120,25 @@ class SQLiteDataSource(DataSource):
         for col in ['tablename', 'columns']:
             self.visible_columns_table.append_column(column(col))
 
-        # FIXME: Maybe we should use a parameter to generate
-        # search_table if it doesn't exist?
-        search_table = self.table.name + '_search'
         with closing(sqlite3.connect(self.db_file)) as conn:
             with closing(conn.cursor()) as cursor:
+                # FIXME: Maybe we should use a parameter to generate
+                # search_table if it doesn't exist?
+                search_table = self.table.name + '_search'
                 cursor.execute('PRAGMA table_info(%s)' % (search_table, ))
                 if cursor.fetchone():
                     self.search_table = search_table
                 else:
                     self.search_table = None
+
+                # Migrate old `_selected_columns` to `__visible_columns`
+                cursor.execute('PRAGMA table_info(_selected_columns)')
+                columns = {column_info[1] for column_info in cursor.fetchall()}
+                if columns == {u'columns', u'tablename'}:
+                    # `_selected_columns` exists and has the appropriate schema
+                    cursor.execute('ALTER TABLE _selected_columns '
+                                   'RENAME TO __visible_columns')
+                    conn.commit()
 
     ###
     # Public
