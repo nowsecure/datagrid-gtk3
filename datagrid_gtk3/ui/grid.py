@@ -393,17 +393,10 @@ class DataGridController(object):
                                self.on_treeview_cursor_changed)
         self.tree_view.connect('row-activated',
                                self.on_treeview_row_activated)
-        self.tree_view.connect('all-expanded',
-                               self.on_treeview_all_expanded)
         self.icon_view.connect('selection-changed',
                                self.on_iconview_selection_changed)
         self.icon_view.connect('item-activated',
                                self.on_iconview_item_activated)
-
-        self.container.expand_all_btn.connect(
-            'clicked', self.on_expand_all_btn_clicked)
-        self.container.collapse_all_btn.connect(
-            'clicked', self.on_collapse_all_btn_clicked)
 
         # The treview will be the default view
         self.view = self.tree_view
@@ -712,35 +705,6 @@ class DataGridController(object):
         record = self.model.data_source.get_single_record(selected_id)
         self.activated_row_callback(record)
 
-    def on_treeview_all_expanded(self, view, all_expanded):
-        """Handle all-expanded signal on the treeview.
-
-        Set visibility for "expand all" and "collapse all" buttons
-        based on the all_expanded value.
-
-        :param view: The treeview that received the signal
-        :type view: :class:`Gtk.TreeView`
-        :param bool all_expanded: if all rows are expanded or not
-        """
-        self.container.expand_all_btn.set_visible(not all_expanded)
-        self.container.collapse_all_btn.set_visible(all_expanded)
-
-    def on_expand_all_btn_clicked(self, btn):
-        """Expand all rows on the treeview.
-
-        :param btn: the button that received the clicked event
-        :type btn: :class:`Gtk.Button`
-        """
-        self.tree_view.expand_all()
-
-    def on_collapse_all_btn_clicked(self, btn):
-        """Collapse all rows on the treeview.
-
-        :param btn: the button that received the clicked event
-        :type btn: :class:`Gtk.Button`
-        """
-        self.tree_view.collapse_all()
-
     def on_filter_changed(self, combo, attr):
         """Handle selection changed on filter comboboxes.
 
@@ -894,17 +858,6 @@ class DataGridController(object):
         self.view.refresh()
         GObject.idle_add(self._set_visible_range)
 
-        # If any of the root rows has children, we should show the
-        # expand/collapse buttons
-        if (self.view is self.tree_view and
-                any(len(row) > 0 for row in self.model.rows)):
-            self.container.expand_all_btn.set_visible(True)
-            self.container.collapse_all_btn.set_visible(False)
-        else:
-            for widget in [self.container.expand_all_btn,
-                           self.container.collapse_all_btn]:
-                widget.set_visible(False)
-
     def _set_visible_range(self):
         """Update model with current view's visible range."""
         visible_range = self.view.get_visible_range()
@@ -926,10 +879,6 @@ class DataGridView(Gtk.TreeView):
     :keyword bool has_checkboxes: Whether record rows have a checkbox
 
     """
-
-    __gsignals__ = {
-        'all-expanded': (GObject.SignalFlags.RUN_FIRST, None, (bool, ))
-    }
 
     has_checkboxes = GObject.property(type=bool, default=True)
 
@@ -956,7 +905,6 @@ class DataGridView(Gtk.TreeView):
         self.active_sort_column_order = None
 
         self.expanded_ids = set()
-        self._expandable_ids = set()
         self._all_expanded = False
         self._block_all_expanded = False
 
@@ -975,13 +923,11 @@ class DataGridView(Gtk.TreeView):
 
         self._setup_columns()
 
-        self._expandable_ids.clear()
         # After refreshing the model, some rows may not be present anymore.
         # Let self.expanded_ids be constructed again by the events bellow
         expanded_ids = self.expanded_ids.copy()
         self.expanded_ids.clear()
 
-        self._block_all_expanded = True
         # FIXME: This is very optimized, but on some situations (e.g. all paths
         # are expanded and the user changed the sort column), this would make
         # everything be loaded at the same time. Is there anything we can do
@@ -991,26 +937,6 @@ class DataGridView(Gtk.TreeView):
             if row is None:
                 continue
             self.expand_to_path(Gtk.TreePath(row.path))
-        self._block_all_expanded = False
-        self._check_all_expanded()
-
-    def expand_all(self):
-        """Expand all expandable rows on the view."""
-        # A little optimization to avoid calling _check_all_expanded
-        # for all rows that will be expanded
-        self._block_all_expanded = True
-        super(DataGridView, self).expand_all()
-        self._block_all_expanded = False
-        self._check_all_expanded()
-
-    def collapse_all(self):
-        """Collapse all expandable rows on the view."""
-        # A little optimization to avoid calling _check_all_expanded
-        # for all rows that will be collapsed
-        self._block_all_expanded = True
-        super(DataGridView, self).collapse_all()
-        self._block_all_expanded = False
-        self._check_all_expanded()
 
     ###
     # Callbacks
@@ -1045,7 +971,6 @@ class DataGridView(Gtk.TreeView):
         """
         row_id = self.model.get_value(iter_, self.model.id_column_idx)
         self.expanded_ids.add(row_id)
-        self._check_all_expanded()
 
     def on_row_collapsed(self, treeview, iter_, path):
         """Handle row-collapsed events.
@@ -1061,7 +986,6 @@ class DataGridView(Gtk.TreeView):
         """
         self.expanded_ids.discard(
             self.model.get_value(iter_, self.model.id_column_idx))
-        self._check_all_expanded()
 
     def on_model_row_changed(self, model, path, iter_):
         """Track row changes on model.
@@ -1135,32 +1059,6 @@ class DataGridView(Gtk.TreeView):
     ###
     # Private
     ###
-
-    def _get_expandable_ids(self):
-        """Get the ids of the expandable rows."""
-        if not self._expandable_ids:
-            if not self.model.rows.is_children_loaded(recursive=True):
-                # If there's still anything to load, for sure all
-                # are not expanded. Return None to avoid confusing it with
-                # an empty set
-                return None
-
-            for row in self.model.iter_rows():
-                if len(row):
-                    row_id = row.data[self.model.id_column_idx]
-                    self._expandable_ids.add(row_id)
-
-        return self._expandable_ids
-
-    def _check_all_expanded(self):
-        """Check expanded rows and maybe emit all-expanded event"""
-        if self._block_all_expanded:
-            return
-
-        old_all_expanded = self._all_expanded
-        self._all_expanded = self.expanded_ids == self._get_expandable_ids()
-        if self._all_expanded != old_all_expanded:
-            self.emit('all-expanded', self._all_expanded)
 
     def _setup_columns(self):
         """Configure the column widgets in the view."""
