@@ -2,7 +2,7 @@ from contextlib import closing
 import sqlite3
 import tempfile
 
-from datagrid_gtk3.ui.grid import default_get_full_path
+from datagrid_gtk3.utils.imageutils import get_icon_filename
 
 
 TEST_DATA = {
@@ -17,10 +17,11 @@ TEST_DATA = {
         ],
         'data': [
             (1, 'Dee', 'Timberlake', 30, 1286755200,
-             'file://' + default_get_full_path('icons/image.png')),
+             'file://' + get_icon_filename(['image'], 48)),
             (2, 'Steve', 'Austin', 35, 1318291200,
-             'file://' + default_get_full_path('icons/calendar22.png')),
-            (3, 'Oscar', 'Goldman', 50, 1349913600, None)
+             'file://' + get_icon_filename(['calendar'], 48)),
+            (3, 'Oscar', 'Goldman', 50, 1349913600, None),
+            (4, 'Monica', 'Goldman', 40, 1344953660, None),
         ]
     },
     'files': {

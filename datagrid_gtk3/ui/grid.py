@@ -19,7 +19,6 @@ from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
 from datagrid_gtk3.utils.transformations import get_transformer
 
-GRID_LABEL_MAX_LENGTH = 100
 _MEDIA_FILES = os.path.join(
     os.path.dirname(os.path.realpath(__file__)),
     os.pardir,
@@ -108,12 +107,13 @@ class OptionsPopup(Gtk.Window):
             self._scrolled_window.remove(child)
 
         vbox = Gtk.VBox()
-        for switch in self._get_view_options():
-            vbox.pack_start(switch, expand=False, fill=False,
+        combo = self._get_view_options()
+        if combo is not None:
+            vbox.pack_start(combo, expand=False, fill=False,
                             padding=self.OPTIONS_PADDING)
-
-        vbox.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
-                        expand=True, fill=True, padding=self.OPTIONS_PADDING)
+            vbox.pack_start(
+                Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL),
+                expand=True, fill=True, padding=self.OPTIONS_PADDING)
 
         for switch in self._get_visibility_options():
             vbox.pack_start(switch, expand=False, fill=False,
@@ -207,6 +207,10 @@ class OptionsPopup(Gtk.Window):
                for c in self._controller.model.columns):
             iters[self.VIEW_ICON] = model.append(("Icon View", self.VIEW_ICON))
 
+        # Avoid displaying the combo if there's only one option
+        if len(iters) == 1:
+            return None
+
         combo = Gtk.ComboBox()
         combo.set_model(model)
         renderer = Gtk.CellRendererText()
@@ -225,7 +229,7 @@ class OptionsPopup(Gtk.Window):
                 self._controller.view, ))
 
         combo.connect('changed', self.on_combo_view_changed)
-        yield combo
+        return combo
 
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
@@ -338,28 +342,6 @@ class DataGridContainer(UIFile):
         UIFile.__init__(self, self.UI_FNAME)
 
 
-def default_decode_fallback(obj):
-    """Called for decoding an object to a string when `unicode(obj)` fails.
-
-    :param obj: Any python object.
-    :rtype: unicode
-    """
-    return repr(obj)
-
-
-def default_get_full_path(relative_path):
-    """Returns a full paths to a file when
-    given a relative path, or None if the file isn't available.
-
-    :param relative_path: The relative path to a file.
-    :type relative_path: str
-    :rtype: str or None
-    """
-    full_path = os.path.join(_MEDIA_FILES, relative_path)
-    if os.path.exists(full_path):
-        return full_path
-
-
 class DataGridController(object):
 
     """UI controls to manipulate datagrid model/view.
@@ -385,23 +367,16 @@ class DataGridController(object):
 
     """
 
-    MIN_TIMESTAMP = 0  # 1970
-    MAX_TIMESTAMP = 2147485547  # 2038
-
     def __init__(self, container, data_source, selected_record_callback=None,
                  activated_icon_callback=None, activated_row_callback=None,
                  has_checkboxes=True, decode_fallback=None,
                  get_full_path=None):
         """Setup UI controls and load initial data view."""
-        if decode_fallback is None:
-            decode_fallback = default_decode_fallback
-        if get_full_path is None:
-            get_full_path = default_get_full_path
-
         self.extra_filter_widgets = {}
         self.container = container
 
-        self.decode_fallback = decode_fallback
+        self.decode_fallback = (
+            decode_fallback if decode_fallback else lambda o: repr(r))
         self.get_full_path = get_full_path
         self.selected_record_callback = selected_record_callback
         self.activated_icon_callback = activated_icon_callback
@@ -441,12 +416,18 @@ class DataGridController(object):
         self.options_popup.connect('view-changed', self.on_popup_view_changed)
 
         # date range widgets
-        self.container.image_start_date.set_from_file(
-            get_full_path('icons/calendar22.png')
-        )
-        self.container.image_end_date.set_from_file(
-            get_full_path('icons/calendar22.png')
-        )
+        icon_theme = Gtk.IconTheme.get_default()
+        for icon in ['calendar', 'stock_calendar']:
+            if icon_theme.has_icon(icon):
+                break
+        else:
+            # Should never happen, just a precaution
+            raise Exception("No suitable calendar icon found on theme")
+
+        for image in [self.container.image_start_date,
+                      self.container.image_end_date]:
+            image.set_from_icon_name(icon, Gtk.IconSize.BUTTON)
+
         self.date_start = popupcal.DateEntry(self.container.window)
         self.date_start.set_editable(False)
         self.date_start.set_sensitive(False)
@@ -529,6 +510,7 @@ class DataGridController(object):
             for widget in widgets:
                 widget.hide()
         else:
+            combox_date_cols.set_active(0)
             for widget in widgets:
                 widget.show()
 
@@ -615,7 +597,7 @@ class DataGridController(object):
         else:
             self.model.display_columns.discard(name)
 
-        self.model.data_source.update_selected_columns(
+        self.model.data_source.set_visible_columns(
             self.model.display_columns)
         self.view.refresh()
 
@@ -822,12 +804,12 @@ class DataGridController(object):
             # TODO: restore use of time as well as date in UI
             start_timestamp = self._get_timestamp_from_str(start_date_str)
         else:
-            start_timestamp = self.MIN_TIMESTAMP
+            start_timestamp = None
         if end_date:
             end_date_str = end_date + ' 23:59'
             end_timestamp = self._get_timestamp_from_str(end_date_str)
         else:
-            end_timestamp = self.MAX_TIMESTAMP
+            end_timestamp = None
         active_date_column = self.container.combobox_date_columns.get_active()
         model_date_columns = self.container.combobox_date_columns.get_model()
         # clear all params from previous date column range select
@@ -835,12 +817,27 @@ class DataGridController(object):
         # FIXME: Why this is comming as -1 on exampledata for Employee?
         active_date_column = min(active_date_column, 0)
         column = model_date_columns[active_date_column][0]
-        update_dict = {
-            column: {
-                'operator': 'range',
-                'param': (start_timestamp, end_timestamp)
+
+        if start_timestamp is not None and end_timestamp is not None:
+            operator = 'range'
+            param = (start_timestamp, end_timestamp)
+        elif start_timestamp is not None:
+            operator = '>='
+            param = start_timestamp
+        elif end_timestamp is not None:
+            operator = '<='
+            param = end_timestamp
+        else:
+            operator = None
+            param = None
+
+        update_dict = {}
+        if operator is not None:
+            update_dict[column] = {
+                'operator': operator,
+                'param': param,
             }
-        }
+
         self._refresh_view(update_dict, remove_columns)
 
     ###
@@ -1579,12 +1576,11 @@ class DataGridModel(GenericTreeModel):
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
 
+    STRING_MAX_LENGTH = 100
     IMAGE_PREFIX = 'file://'
     IMAGE_BORDER_SIZE = 6
     IMAGE_SHADOW_SIZE = 6
     IMAGE_SHADOW_OFFSET = 2
-    MIN_TIMESTAMP = 0  # 1970
-    MAX_TIMESTAMP = 2147485547  # 2038
 
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
@@ -1609,9 +1605,13 @@ class DataGridModel(GenericTreeModel):
                 self.datetime_columns.append(column)
             self.column_types.append(column['type'])
 
-        self.display_columns = {
-            col['name'] for col in self.columns
-            if col['visible'] and not col['name'].startswith('__')}
+        selected_columns = self.data_source.get_visible_columns()
+        if selected_columns is not None:
+            self.display_columns = set(selected_columns)
+        else:
+            self.display_columns = {
+                col['name'] for col in self.columns
+                if col['visible'] and not col['name'].startswith('__')}
 
         self.encoding_hint = encoding_hint
         self.selected_cells = list()
@@ -1777,11 +1777,21 @@ class DataGridModel(GenericTreeModel):
 
             if value.startswith(self.IMAGE_PREFIX):
                 value = value[len(self.IMAGE_PREFIX):]
-            else:
+
+            if not value:
+                # Force fallback in this case
                 value = None
+            elif not os.path.isabs(value):
+                if self.get_media_callback is None:
+                    logger.warning(
+                        "Don't know how to access the relative path '%s'. "
+                        "Try passing get_full_path to controller.", value)
+                    value = None
+                else:
+                    value = self.get_media_callback(value)
         elif transformer_name in ['string', 'html']:
             transformer_kwargs.update(dict(
-                max_length=GRID_LABEL_MAX_LENGTH, oneline=True,
+                max_length=self.STRING_MAX_LENGTH, oneline=True,
                 decode_fallback=self.decode_fallback,
             ))
 

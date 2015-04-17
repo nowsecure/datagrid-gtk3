@@ -36,7 +36,7 @@ class SQLiteDataSourceTest(unittest.TestCase):
         """Load first page of records and get total."""
         rows = self.datasource.load()
         self.assertEqual(len(rows), 2)
-        self.assertEqual(self.datasource.total_recs, 3)
+        self.assertEqual(self.datasource.total_recs, 4)
 
     def test_load_with_params(self):
         """Filter and order records."""
@@ -53,11 +53,26 @@ class SQLiteDataSourceTest(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].data[3], 'Goldman')
 
+    def test_load_with_where_param(self):
+        """Filter results with a search param."""
+        param = {
+            'where': {
+                'search': {
+                    'param': 'gold',
+                },
+            },
+        }
+        rows = self.datasource.load(param)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(
+            {('Oscar', 'Goldman'), ('Monica', 'Goldman')},
+            {(row.data[2], row.data[3]) for row in rows})
+
     def test_load_paging(self):
         """Load first and second pages of records."""
         self.datasource.load()  # initial load is always without paging
         rows = self.datasource.load({'page': 1})
-        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0].data[3], 'Goldman')
 
     def test_update(self):
@@ -77,13 +92,12 @@ class SQLiteDataSourceTest(unittest.TestCase):
             }
         }
         ids = self.datasource.get_all_record_ids(param)
-        self.assertEqual(ids, [2, 3])
+        self.assertEqual(ids, [2, 3, 4])
 
-    def test_selected_columns(self):
-        """Set selected columns and ensure they're persisted."""
-        self.datasource.update_selected_columns(['last_name'])
-        cols = self.datasource.get_selected_columns()
-        self.assertEqual(cols, ['last_name'])
+    def test_visible_columns(self):
+        """Set visible columns and ensure they're persisted."""
+        self.datasource.set_visible_columns(['last_name'])
+        self.assertEqual(self.datasource.get_visible_columns(), ['last_name'])
 
     def test_get_single_record(self):
         """Retrieve a single record as a tuple of values."""
@@ -97,7 +111,7 @@ class SQLiteDataSourceTest(unittest.TestCase):
         db_file = self.datasource.db_file
         with contextlib.closing(sqlite3.connect(db_file)) as conn:
             results = list(self.datasource.select(conn, self.datasource.table))
-        self.assertEqual(len(results), 3)
+        self.assertEqual(len(results), 4)
 
     def test_explicit_query(self):
         """Test using an explicit query for the data source."""
