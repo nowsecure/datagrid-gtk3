@@ -6,11 +6,17 @@
 import atexit
 import logging
 import os
+import sys
 
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 
+try:
+    import datagrid_gtk3
+except ImportError:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__),
+                                    os.path.pardir, os.path.pardir))
 from datagrid_gtk3.utils import (
     setup_logging_to_stdout,
     setup_gtk_show_rules_hint,
