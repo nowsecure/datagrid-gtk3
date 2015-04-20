@@ -817,7 +817,7 @@ class DataGridController(object):
         # clear all params from previous date column range select
         remove_columns = [column[0] for column in model_date_columns]
         # FIXME: Why this is comming as -1 on exampledata for Employee?
-        active_date_column = min(active_date_column, 0)
+        active_date_column = max(active_date_column, 0)
         column = model_date_columns[active_date_column][0]
 
         if start_timestamp is not None and end_timestamp is not None:
