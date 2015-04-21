@@ -2,7 +2,7 @@
 
 __author__ = 'viaForensics'
 __email__ = 'info@viaforensics.com'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 import logging
 import os
