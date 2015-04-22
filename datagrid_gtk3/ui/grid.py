@@ -377,8 +377,7 @@ class DataGridController(object):
         self.extra_filter_widgets = {}
         self.container = container
 
-        self.decode_fallback = (
-            decode_fallback if decode_fallback else lambda o: repr(r))
+        self.decode_fallback = decode_fallback if decode_fallback else repr
         self.get_full_path = get_full_path
         self.selected_record_callback = selected_record_callback
         self.activated_icon_callback = activated_icon_callback
