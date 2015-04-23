@@ -17,6 +17,7 @@ from pygtkcompat.generictreemodel import GenericTreeModel
 
 from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
+from datagrid_gtk3.utils.dateutils import normalize_timestamp
 from datagrid_gtk3.utils.transformations import get_transformer
 
 _MEDIA_FILES = os.path.join(
@@ -462,13 +463,14 @@ class DataGridController(object):
         for view in [self.tree_view, self.icon_view]:
             view.model = self.model
 
-        liststore_date_cols = Gtk.ListStore(str, str)
+        liststore_date_cols = Gtk.ListStore(str, str, str)
         if self.model.datetime_columns:
             self.date_start.set_sensitive(True)
             self.date_end.set_sensitive(True)
 
         for column in self.model.datetime_columns:
-            liststore_date_cols.append((column['name'], column['display']))
+            liststore_date_cols.append(
+                (column['name'], column['display'], column['transform']))
 
         combox_date_cols = self.container.combobox_date_columns
         old_model = combox_date_cols.get_model()
@@ -777,13 +779,23 @@ class DataGridController(object):
             end_timestamp = self._get_timestamp_from_str(end_date_str)
         else:
             end_timestamp = None
+
         active_date_column = self.container.combobox_date_columns.get_active()
         model_date_columns = self.container.combobox_date_columns.get_model()
         # clear all params from previous date column range select
         remove_columns = [column[0] for column in model_date_columns]
         # FIXME: Why this is comming as -1 on exampledata for Employee?
-        active_date_column = min(active_date_column, 0)
+        active_date_column = max(active_date_column, 0)
         column = model_date_columns[active_date_column][0]
+        transform = model_date_columns[active_date_column][2]
+
+        # Normalize the timestamp so the search is accurate
+        if start_timestamp:
+            start_timestamp = normalize_timestamp(
+                start_timestamp, transform, inverse=True)
+        if end_timestamp:
+            end_timestamp = normalize_timestamp(
+                end_timestamp, transform, inverse=True)
 
         if start_timestamp is not None and end_timestamp is not None:
             operator = 'range'

@@ -26,26 +26,39 @@ _UNIX_ZERO_POINT_IN_JULIAN_DAYS = 2440587.5
 
 
 _base_norm = lambda v: v
+
 _ms_norm = lambda v: v / 10 ** 3
+_ms_norm_inv = lambda v: v * 10 ** 3
+
 _Ms_norm = lambda v: v / 10 ** 6
+_Ms_norm_inv = lambda v: v * 10 ** 6
+
 _apple_norm = lambda v: v + _APPLE_TIMESTAMP_OFFSET
+_apple_norm_inv = lambda v: v - _APPLE_TIMESTAMP_OFFSET
+
 _webkit_norm = lambda v: _Ms_norm(v) - _WEBKIT_TIMESTAMP_OFFSET
+_webkit_norm_inv = lambda v: _Ms_norm_inv(v + _WEBKIT_TIMESTAMP_OFFSET)
+
 _julian_norm = lambda v: (
     (v - _UNIX_ZERO_POINT_IN_JULIAN_DAYS) * _SECONDS_IN_A_DAY)
+_julian_norm_inv = lambda v: (
+    (v / _SECONDS_IN_A_DAY) + _UNIX_ZERO_POINT_IN_JULIAN_DAYS)
 
 
+(_NORM_POS,
+ _NORM_INV_POS) = range(2)
 _normalizations = dict(
-    timestamp=_base_norm,
-    timestamp_unix=_base_norm,
-    timestamp_ms=_ms_norm,
-    timestamp_unix_ms=_ms_norm,
-    timestamp_Ms=_Ms_norm,
-    timestamp_unix_Ms=_Ms_norm,
-    timestamp_apple=_apple_norm,
-    timestamp_ios=_apple_norm,
-    timestamp_webkit=_webkit_norm,
-    timestamp_julian=_julian_norm,
-    timestamp_julian_date=_julian_norm,
+    timestamp=(_base_norm, _base_norm),
+    timestamp_unix=(_base_norm, _base_norm),
+    timestamp_ms=(_ms_norm, _ms_norm_inv),
+    timestamp_unix_ms=(_ms_norm, _ms_norm_inv),
+    timestamp_Ms=(_Ms_norm, _Ms_norm_inv),
+    timestamp_unix_Ms=(_Ms_norm, _Ms_norm_inv),
+    timestamp_apple=(_apple_norm, _apple_norm_inv),
+    timestamp_ios=(_apple_norm, _apple_norm_inv),
+    timestamp_webkit=(_webkit_norm, _webkit_norm_inv),
+    timestamp_julian=(_julian_norm, _julian_norm_inv),
+    timestamp_julian_date=(_julian_norm, _julian_norm_inv),
 )
 
 
@@ -61,7 +74,7 @@ def supported_timestamp_formats():
     return _normalizations.keys()
 
 
-def normalize_timestamp(value, timestamp_format):
+def normalize_timestamp(value, timestamp_format, inverse=False):
     """Normalize timestamp to unix.
 
     Receives a timestamp in any of the supported formats
@@ -70,6 +83,9 @@ def normalize_timestamp(value, timestamp_format):
 
     :param long value: the timestamp
     :param str timestamp_format: the timestamp format
+    :param bool inverse: if we should calculate the inverse of the
+        normalization, that is, value is already a timestamp and we
+        want it in the given timestamp_format.
     :return: the timestamp normalized
     :rtype: long
     """
@@ -78,4 +94,5 @@ def normalize_timestamp(value, timestamp_format):
             'Timestamp format "%s" not supported.', timestamp_format)
         return value
 
-    return _normalizations[timestamp_format](value)
+    pos = _NORM_INV_POS if inverse else _NORM_POS
+    return _normalizations[timestamp_format][pos](value)
