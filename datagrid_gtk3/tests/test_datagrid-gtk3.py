@@ -610,16 +610,15 @@ class TransformationsTest(unittest.TestCase):
             _add_drop_shadow_func(*args, **kwargs)
             return image
 
+        cm = imageutils.ImageCacheManager.get_default()
         self.datagrid_model.image_draw_border = True
+        self.datagrid_model.image_load_on_thread = False
         self.datagrid_model.image_max_size = 123
-        self.datagrid_model.IMAGE_BORDER_SIZE = 8
-        self.datagrid_model.IMAGE_SHADOW_SIZE = 10
-        self.datagrid_model.IMAGE_SHADOW_OFFSET = 4
 
         with contextlib.nested(
                 mock.patch('datagrid_gtk3.utils.imageutils.add_drop_shadow'),
                 mock.patch('datagrid_gtk3.utils.imageutils.add_border'),
-                mock.patch('datagrid_gtk3.utils.transformations.Image.open'),
+                mock.patch('datagrid_gtk3.utils.imageutils.Image.open'),
                 mock.patch.object(image, 'thumbnail')) as (
                     add_drop_shadow, add_border, open_, thumbnail):
             add_border.side_effect = _add_border
@@ -632,9 +631,11 @@ class TransformationsTest(unittest.TestCase):
 
             thumbnail.assert_called_once_with((123, 123), Image.BICUBIC)
             open_.assert_called_once_with('/xxx')
-            add_border.assert_called_once_with(image, border_size=8)
+            add_border.assert_called_once_with(
+                image, border_size=cm.IMAGE_BORDER_SIZE)
             add_drop_shadow.assert_called_once_with(
-                image, border_size=10, offset=(4, 4))
+                image, border_size=cm.IMAGE_BORDER_SIZE,
+                offset=(cm.IMAGE_SHADOW_OFFSET, cm.IMAGE_SHADOW_OFFSET))
 
     @mock.patch('datagrid_gtk3.utils.imageutils.add_drop_shadow')
     @mock.patch('datagrid_gtk3.utils.imageutils.add_border')
@@ -648,9 +649,10 @@ class TransformationsTest(unittest.TestCase):
 
         self.datagrid_model.image_max_size = 123
         self.datagrid_model.image_draw_border = False
+        self.datagrid_model.image_load_on_thread = False
 
         with contextlib.nested(
-                mock.patch('datagrid_gtk3.utils.transformations.Image.open'),
+                mock.patch('datagrid_gtk3.utils.imageutils.Image.open'),
                 mock.patch.object(image, 'thumbnail')) as (open_, thumbnail):
             open_.return_value = image
             self.assertIsInstance(

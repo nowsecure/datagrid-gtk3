@@ -18,6 +18,7 @@ from pygtkcompat.generictreemodel import GenericTreeModel
 from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
 from datagrid_gtk3.utils.dateutils import normalize_timestamp
+from datagrid_gtk3.utils.imageutils import ImageCacheManager
 from datagrid_gtk3.utils.transformations import get_transformer
 
 _MEDIA_FILES = os.path.join(
@@ -398,10 +399,17 @@ class DataGridController(object):
                                self.on_iconview_selection_changed)
         self.icon_view.connect('item-activated',
                                self.on_iconview_item_activated)
+        self.tree_view.connect('row-expanded',
+                               self.on_tree_view_row_expanded)
+        self.tree_view.connect('row-collapsed',
+                               self.on_tree_view_row_collapsed)
 
         # The treview will be the default view
         self.view = self.tree_view
         self.container.grid_scrolledwindow.add(self.view)
+
+        cm = ImageCacheManager.get_default()
+        cm.connect('image-loaded', self.on_image_cache_manager_image_loaded)
 
         # select columns toggle button
         self.options_popup = OptionsPopup(
@@ -706,6 +714,45 @@ class DataGridController(object):
         selected_id = row[self.model.id_column_idx]
         record = self.model.data_source.get_single_record(selected_id)
         self.activated_row_callback(record)
+
+    def on_tree_view_row_expanded(self, treeview, iter_, path):
+        """Handle row-expanded events.
+
+        Make sure visible range will be updated on the model.
+
+        :param treeview: the treeview that had one of its rows expanded
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the expanded row
+        :type iter_: :class:`Gtk.TreeIter`
+        :param path: the path pointing to the expanded row
+        :type path: :class:`Gtk.TreePath`
+        """
+        GObject.idle_add(self._set_visible_range)
+
+    def on_tree_view_row_collapsed(self, treeview, iter_, path):
+        """Handle row-collapsed events.
+
+        Make sure visible range will be updated on the model.
+
+        :param treeview: the treeview that had one of its rows collapsed
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the collapsed row
+        :type iter_: :class:`Gtk.TreeIter`
+        :param path: the path pointing to the collapsed row
+        :type path: :class:`Gtk.TreePath`
+        """
+        GObject.idle_add(self._set_visible_range)
+
+    def on_image_cache_manager_image_loaded(self, cm):
+        """Handle image-loaded event for image cache manager.
+
+        When an image finishes loading, queue a redraw to make sure
+        the image will be loaded.
+
+        :param cm: the cache manager that emited the event
+        :type cm: :class: `datagrid_gtk3.utils.imageutils.ImageCacheManager`
+        """
+        self.view.queue_draw()
 
     def on_filter_changed(self, combo, attr):
         """Handle selection changed on filter comboboxes.
@@ -1488,12 +1535,10 @@ class DataGridModel(GenericTreeModel):
 
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
+    image_load_on_thread = GObject.property(type=bool, default=True)
 
     STRING_MAX_LENGTH = 100
     IMAGE_PREFIX = 'file://'
-    IMAGE_BORDER_SIZE = 6
-    IMAGE_SHADOW_SIZE = 6
-    IMAGE_SHADOW_OFFSET = 2
 
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
@@ -1664,9 +1709,8 @@ class DataGridModel(GenericTreeModel):
             transformer_kwargs.update(dict(
                 size=self.image_max_size,
                 draw_border=self.image_draw_border,
-                border_size=self.IMAGE_BORDER_SIZE,
-                shadow_size=self.IMAGE_SHADOW_SIZE,
-                shadow_offset=self.IMAGE_SHADOW_OFFSET,
+                load_on_thread=self.image_load_on_thread,
+                draft=True,
             ))
 
             # If no value, use an invisible image as a placeholder
