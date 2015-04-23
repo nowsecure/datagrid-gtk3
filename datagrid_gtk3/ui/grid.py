@@ -826,9 +826,11 @@ class DataGridController(object):
 
         # Normalize the timestamp so the search is accurate
         if start_timestamp:
-            start_timestamp = normalize_timestamp(start_timestamp, transform)
+            start_timestamp = normalize_timestamp(
+                start_timestamp, transform, inverse=True)
         if end_timestamp:
-            end_timestamp = normalize_timestamp(end_timestamp, transform)
+            end_timestamp = normalize_timestamp(
+                end_timestamp, transform, inverse=True)
 
         if start_timestamp is not None and end_timestamp is not None:
             operator = 'range'
