@@ -1640,15 +1640,7 @@ class DataGridModel(GenericTreeModel):
 
         if value is not None and 'type' in col_dict:
             # Try enforcing value type
-            type_ = col_dict['type']
-            if not isinstance(
-                value, basestring if type_ in (str, unicode) else type_
-            ):
-                try:
-                    value = col_dict['type'](value)
-                except (ValueError, TypeError):
-                    logger.warn('Could not enforce type "%s" for "%r"',
-                                col_dict['type'].__name__, value)
+            value = self._enforce_value_type(value, col_dict['type'])
 
         if transformer is None:
             logger.warning("No transformer found for %s", transformer_name)
@@ -1676,6 +1668,12 @@ class DataGridModel(GenericTreeModel):
                         GdkPixbuf.InterpType.NEAREST)
                     self._invisible_images[self.image_max_size] = invisible_img
                 return invisible_img
+
+            if isinstance(value, buffer):
+                # FIXME: Support buffer in the future. Atm, set visible to
+                # False so a fallback image will be returned bellow
+                logger.warn('Buffered images are still not supported')
+                visible = False
 
             # When not visible on the iconview, use an already generated
             # fallback image (that has the same dimensions as the real
@@ -1803,6 +1801,24 @@ class DataGridModel(GenericTreeModel):
     ###
     # Private
     ###
+
+    def _enforce_value_type(self, value, type_):
+        # FIXME: Some configurations are indicating the images as buffer,
+        # but really are storing the file path. This can be removed
+        # when those places are fixed.
+        if type_ == buffer and isinstance(value, basestring):
+            return value
+
+        # Don't try to convert str=>unicode and unicode=>str
+        type_check = basestring if type_ in [str, unicode] else type_
+        if not isinstance(value, type_check):
+            try:
+                value = type_(value)
+            except (ValueError, TypeError):
+                logger.warn('Could not enforce type "%s" for "%r"',
+                            type_.__name__, value)
+
+        return value
 
     def _ensure_children_is_loaded(self, row):
         if not row.is_children_loaded():
