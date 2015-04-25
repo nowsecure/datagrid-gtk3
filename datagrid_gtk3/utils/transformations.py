@@ -5,11 +5,7 @@ import logging
 import HTMLParser
 
 import dateutil.parser
-from gi.repository import (
-    GdkPixbuf,
-    Gtk,
-)
-from PIL import Image
+from gi.repository import Gtk
 
 from datagrid_gtk3.utils import imageutils
 from datagrid_gtk3.utils import dateutils
@@ -409,7 +405,7 @@ def timestamp_midnight_Ms_transform(value):
 
 @transformer('image')
 def image_transform(path, size=24, fill_image=True, draw_border=False,
-                    border_size=6, shadow_size=6, shadow_offset=2):
+                    draft=False, load_on_thread=False):
     """Render path into a pixbuf.
 
     :param str path: the image path or `None` to use a fallback image
@@ -419,62 +415,14 @@ def image_transform(path, size=24, fill_image=True, draw_border=False,
         background to make a smaller image be at least a square of
         (size, size), with the real image at the center.
     :param bool draw_border: if we should add a border on the image
-    :param border_size: the size of the border (if drawing border)
-    :param shadow_size: the size of the drop shadow (if drawing border)
-    :param shadow_offset: the offset of the drop shadow (if drawing border)
+    :param bool draft: if we should load the image as a draft. This
+        trades a little quality for a much higher performance.
+    :param bool load_on_thread: if we should load the image on another
+        thread. This will make a placeholder be returned the first
+        time this method is called.
     :returns: the resized pixbuf
     :rtype: :class:`GdkPixbuf.Pixbuf`
     """
-    path = path or ''
-    try:
-        image = Image.open(path)
-        image.load()
-    except IOError:
-        # Size will always be rounded to the next value. After 48, the next is
-        # 256 and we don't want something that big here.
-        fallback_size = min(size, 48)
-        # If the image is damaged for some reason, use fallback for
-        # its mimetype. Maybe the image is not really an image
-        # (it could be a video, a plain text file, etc)
-        fallback = imageutils.get_icon_for_file(path, fallback_size)
-        image = Image.open(fallback)
-
-    image.thumbnail((size, size), Image.BICUBIC)
-
-    if draw_border:
-        image = imageutils.add_border(image, border_size=border_size)
-        image = imageutils.add_drop_shadow(
-            image, border_size=shadow_size,
-            offset=(shadow_offset, shadow_offset))
-
-        size += border_size * 2
-        size += shadow_size * 2
-        size += shadow_offset
-    else:
-        # FIXME: There's a bug on PIL where image.thumbnail modifications will
-        # be lost for some images when saving it the way we do on image2pixbuf
-        # (even image.copy().size != image.size when it was resized).
-        # Adding a border of size 0 will make it at least be pasted to a new
-        # image (which didn't have its thumbnail method called), working around
-        # this issue.
-        image = imageutils.add_border(image, 0)
-
-    pixbuf = imageutils.image2pixbuf(image)
-    width = pixbuf.get_width()
-    height = pixbuf.get_height()
-
-    if not fill_image:
-        return pixbuf
-
-    # Make sure the image is on the center of the image_max_size
-    square_pic = GdkPixbuf.Pixbuf.new(
-        GdkPixbuf.Colorspace.RGB, True, pixbuf.get_bits_per_sample(),
-        size, size)
-    # Fill with transparent white
-    square_pic.fill(0xffffff00)
-
-    dest_x = (size - width) / 2
-    dest_y = (size - height) / 2
-    pixbuf.copy_area(0, 0, width, height, square_pic, dest_x, dest_y)
-
-    return square_pic
+    cm = imageutils.ImageCacheManager.get_default()
+    return cm.get_image(path, size, fill_image, draw_border,
+                        draft, load_on_thread)

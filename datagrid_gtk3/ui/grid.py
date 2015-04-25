@@ -18,6 +18,7 @@ from pygtkcompat.generictreemodel import GenericTreeModel
 from datagrid_gtk3.ui import popupcal
 from datagrid_gtk3.ui.uifile import UIFile
 from datagrid_gtk3.utils.dateutils import normalize_timestamp
+from datagrid_gtk3.utils.imageutils import ImageCacheManager
 from datagrid_gtk3.utils.transformations import get_transformer
 
 _MEDIA_FILES = os.path.join(
@@ -398,10 +399,17 @@ class DataGridController(object):
                                self.on_iconview_selection_changed)
         self.icon_view.connect('item-activated',
                                self.on_iconview_item_activated)
+        self.tree_view.connect('row-expanded',
+                               self.on_tree_view_row_expanded)
+        self.tree_view.connect('row-collapsed',
+                               self.on_tree_view_row_collapsed)
 
         # The treview will be the default view
         self.view = self.tree_view
         self.container.grid_scrolledwindow.add(self.view)
+
+        cm = ImageCacheManager.get_default()
+        cm.connect('image-loaded', self.on_image_cache_manager_image_loaded)
 
         # select columns toggle button
         self.options_popup = OptionsPopup(
@@ -706,6 +714,45 @@ class DataGridController(object):
         selected_id = row[self.model.id_column_idx]
         record = self.model.data_source.get_single_record(selected_id)
         self.activated_row_callback(record)
+
+    def on_tree_view_row_expanded(self, treeview, iter_, path):
+        """Handle row-expanded events.
+
+        Make sure visible range will be updated on the model.
+
+        :param treeview: the treeview that had one of its rows expanded
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the expanded row
+        :type iter_: :class:`Gtk.TreeIter`
+        :param path: the path pointing to the expanded row
+        :type path: :class:`Gtk.TreePath`
+        """
+        GObject.idle_add(self._set_visible_range)
+
+    def on_tree_view_row_collapsed(self, treeview, iter_, path):
+        """Handle row-collapsed events.
+
+        Make sure visible range will be updated on the model.
+
+        :param treeview: the treeview that had one of its rows collapsed
+        :type treeview: :class:`Gtk.TreeView`
+        :param iter_: the iter pointing to the collapsed row
+        :type iter_: :class:`Gtk.TreeIter`
+        :param path: the path pointing to the collapsed row
+        :type path: :class:`Gtk.TreePath`
+        """
+        GObject.idle_add(self._set_visible_range)
+
+    def on_image_cache_manager_image_loaded(self, cm):
+        """Handle image-loaded event for image cache manager.
+
+        When an image finishes loading, queue a redraw to make sure
+        the image will be loaded.
+
+        :param cm: the cache manager that emited the event
+        :type cm: :class: `datagrid_gtk3.utils.imageutils.ImageCacheManager`
+        """
+        self.view.queue_draw()
 
     def on_filter_changed(self, combo, attr):
         """Handle selection changed on filter comboboxes.
@@ -1488,12 +1535,10 @@ class DataGridModel(GenericTreeModel):
 
     image_max_size = GObject.property(type=float, default=24.0)
     image_draw_border = GObject.property(type=bool, default=False)
+    image_load_on_thread = GObject.property(type=bool, default=True)
 
     STRING_MAX_LENGTH = 100
     IMAGE_PREFIX = 'file://'
-    IMAGE_BORDER_SIZE = 6
-    IMAGE_SHADOW_SIZE = 6
-    IMAGE_SHADOW_OFFSET = 2
 
     def __init__(self, data_source, get_media_callback, decode_fallback,
                  encoding_hint='utf-8'):
@@ -1593,12 +1638,14 @@ class DataGridModel(GenericTreeModel):
             self.row_id_mapper[row.data[self.id_column_idx]] = row
             parent_row.append(row)
 
-            # FIXME: Non-hierarchical data need this to display the new row,
-            # but hierarchical ones not only will work without this, but will
-            # produce warnings if we try to call this for them.
+            # Non-hierarchical data need this to call self.row_inserted
+            # so the treemodel will know about the new rows.
+            # For hierarchical, those paths/iters already exists, they
+            # are just lazy-loaded when neede (i.e. when expanding the parent)
             if not is_tree:
+                parent_row.children_len += 1
                 path = Gtk.TreePath(row.path)
-                self.row_inserted(path, self.get_iter(path))
+                self.row_inserted(path, self.create_tree_iter(row.path))
 
         return True
 
@@ -1654,9 +1701,8 @@ class DataGridModel(GenericTreeModel):
             transformer_kwargs.update(dict(
                 size=self.image_max_size,
                 draw_border=self.image_draw_border,
-                border_size=self.IMAGE_BORDER_SIZE,
-                shadow_size=self.IMAGE_SHADOW_SIZE,
-                shadow_offset=self.IMAGE_SHADOW_OFFSET,
+                load_on_thread=self.image_load_on_thread,
+                draft=True,
             ))
 
             # If no value, use an invisible image as a placeholder
@@ -1826,9 +1872,9 @@ class DataGridModel(GenericTreeModel):
 
     def _get_row_by_path(self, iter_):
         def get_row_by_iter_aux(iter_aux, rows):
+            self._ensure_children_is_loaded(rows)
             if len(iter_aux) == 1:
                 row = rows[iter_aux[0]]
-                self._ensure_children_is_loaded(row)
                 return row
             return get_row_by_iter_aux(iter_aux[1:], rows[iter_aux[0]])
 
@@ -1905,7 +1951,7 @@ class DataGridModel(GenericTreeModel):
             rows = self._get_row_by_path(parentref)
             next_value = parentref + (rowref[-1] + 1, )
 
-        if not next_value[-1] < len(rows):
+        if not next_value[-1] < rows.children_len:
             return None
 
         return next_value
@@ -1916,21 +1962,23 @@ class DataGridModel(GenericTreeModel):
             return (0, )
 
         parent_row = self._get_row_by_path(rowref)
-        if not len(parent_row):
+        if not parent_row.children_len:
             return None
 
         return rowref + (0, )
 
     def on_iter_has_child(self, rowref):
         """Return true if this node has children."""
-        return bool(self._get_row_by_path(rowref))
+        row = self._get_row_by_path(rowref)
+        return row.children_len > 0
 
     def on_iter_n_children(self, rowref):
         """Return the number of children of this node."""
         if rowref is None:
             return len(self.rows)
 
-        return len(self._get_row_by_path(rowref))
+        row = self._get_row_by_path(rowref)
+        return row.children_len
 
     def on_iter_nth_child(self, parent, n):
         """Return the nth child of this node."""
@@ -1940,7 +1988,7 @@ class DataGridModel(GenericTreeModel):
         else:
             rows = self._get_row_by_path(parent)
 
-        if not 0 <= n < len(rows):
+        if not 0 <= n < rows.children_len:
             return None
 
         return parent + (n, )
