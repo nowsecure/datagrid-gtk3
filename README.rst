@@ -1,8 +1,68 @@
 =============
-datagrid-gtk3
+datagrid_gtk3
 =============
 
-MVC framework for working with the GTK3 TreeView widget.
+SYNOPSIS
+========
 
-..  image:: https://ci.viaforensics.io/buildStatus/icon?job=datagrid-gtk3-tests
-    :target: https://ci.viaforensics.io/job/datagrid-gtk3-tests/
+MVC framework for working with the Gtk3 TreeView widget.
+Includes classes for file browsing and displaying SQLite databases.
+
+
+MOTIVATION
+==========
+
+Created on the account of the reoccurring need to display and interact with
+contents of SQLite databases in Gtk applications.
+
+
+EXAMPLE
+=======
+
+The basic usage scenario looks like this:
+
+.. code-block:: python
+
+    win = Gtk.Window()
+
+    data_source = SQLiteDataSource(db_path, table_name)
+    datagrid_container = DataGridContainer(win)
+    controller = DataGridController(datagrid_container, data_source)
+    datagrid_container.grid_vbox.reparent(win)
+
+    win.show()
+
+
+For more advanced usages see the example applications in the "examples" folder.
+
+
+"Chinook" example
+-----------------
+
+.. figure:: docs/screenshots/table_view.png
+    :alt: Table view
+
+    Displaying a table from an SQLite database with text filtering.
+
+.. figure:: docs/screenshots/date_ranges.png
+    :alt: Date ranges.
+
+    Displaying a table from an SQLite database with date range filtering.
+
+
+"Filebrowser" example
+---------------------
+
+.. figure:: docs/screenshots/icon_view.png
+    :alt: Icon view
+
+    Browsing the file system in icon view mode with thumbnails.
+
+
+"Selectable" example
+--------------------
+
+.. figure:: docs/screenshots/row_selection.png
+    :alt: Row selection
+
+    Persistent row selection in SQLite databases.
