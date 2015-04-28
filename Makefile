@@ -53,11 +53,9 @@ docs:
 	$(MAKE) -C docs html
 	xdg-open docs/_build/html/index.html
 
-# WARNING: open source only
-# release: clean
-# 	python setup.py sdist upload
-# 	python setup.py bdist_wheel upload
-# END WARNING
+release: clean
+	python setup.py sdist upload
+	python setup.py bdist_wheel upload
 
 dist: clean
 	python setup.py sdist
