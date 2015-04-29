@@ -94,5 +94,5 @@ setup(
         "Programming Language :: Python :: 2",
     ],
     test_suite='datagrid_gtk3.tests',
-    tests_require=test_requirements
+    # tests_require=test_requirements
 )
