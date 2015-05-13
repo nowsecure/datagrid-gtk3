@@ -43,5 +43,8 @@ output/*/index.html
 # Sphinx
 docs/_build
 
+# PyCharm
+.idea
+
 # Filebrowser examples database
 examples/filebrowser/filebrowser.sqlite
