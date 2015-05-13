@@ -9,7 +9,7 @@ from setuptools import setup, find_packages
 SETUP_DIR = os.path.dirname(os.path.realpath(__file__))
 EGG_RE = re.compile('#egg=([^#@\n]+)')
 
-readme = open(os.path.join(SETUP_DIR, 'README.rst')).read()
+readme = open(os.path.join(SETUP_DIR, 'DESCRIPTION.rst')).read()
 history = open(
     os.path.join(
         SETUP_DIR, 'HISTORY.rst')).read().replace('.. :changelog:', '')
@@ -72,6 +72,7 @@ def recurse_data_files(path):
 setup(
     name='datagrid_gtk3',
     version='0.1.2',
+    license='MIT',
     description='MVC framework for working with the GTK3 TreeView widget.',
     long_description=readme + '\n\n' + history,
     author='NowSecure',

@@ -1,4 +1,4 @@
-# wheel==0.23.0
+wheel>=0.23.0
 python-dateutil>=2.4.2
 sqlalchemy>=0.9
 Pillow>=2.7.0
