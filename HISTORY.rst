@@ -3,7 +3,7 @@
 History
 -------
 
-0.1.0 (2014-12-15)
+0.1.2 (2015-04-28)
 ---------------------
 
-* Initial release.
+* Initial public release.
