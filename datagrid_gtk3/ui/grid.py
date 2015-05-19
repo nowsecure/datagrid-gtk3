@@ -1388,6 +1388,10 @@ class DataGridIconView(Gtk.IconView):
 
         super(DataGridIconView, self).__init__(**kwargs)
 
+        self._button_press_time = 0
+        self._button_press_scroll = None
+        self._button_press_path = None
+
         self.pixbuf_column = None
         # FIXME: Ideally, we should pass model directly to treeview and get
         # it from self.get_model instead of here. We would need to refresh
@@ -1451,39 +1455,61 @@ class DataGridIconView(Gtk.IconView):
 
         Toggle the check button if we clicked on it.
         """
-        if not self.has_checkboxes:
-            return False
-
         coords = event.get_coords()
         path = self.get_path_at_pos(*coords)
         if not path:
             return False
 
-        success, cell_rect = self.get_cell_rect(path, None)
-        cell_area = self.get_property('cell_area')
+        # If we have checkboxes, check if the click was on it. If it was,
+        # we will need to toggle its state.
+        if self.has_checkboxes:
+            success, cell_rect = self.get_cell_rect(path, None)
+            cell_area = self.get_property('cell_area')
 
-        event_rect = Gdk.Rectangle()
-        event_rect.x, event_rect.y = coords
-        event_rect.width = 1
-        event_rect.height = 1
+            event_rect = Gdk.Rectangle()
+            event_rect.x, event_rect.y = coords
+            event_rect.width = 1
+            event_rect.height = 1
 
-        check_rect = Gdk.Rectangle()
-        (x, y,
-         check_rect.width,
-         check_rect.height) = cell_area.get_checkbutton_area(cell_rect)
+            check_rect = Gdk.Rectangle()
+            (x, y,
+             check_rect.width,
+             check_rect.height) = cell_area.get_checkbutton_area(cell_rect)
 
-        # x and y needs to be converted to bin window coords
-        (check_rect.x,
-         check_rect.y) = self.convert_widget_to_bin_window_coords(x, y)
+            # x and y needs to be converted to bin window coords
+            (check_rect.x,
+             check_rect.y) = self.convert_widget_to_bin_window_coords(x, y)
 
-        # For some reason, we also need to consider the item padding
-        check_rect.x += self.get_item_padding()
-        check_rect.y -= self.get_item_padding()
+            # For some reason, we also need to consider the item padding
+            check_rect.x += self.get_item_padding()
+            check_rect.y -= self.get_item_padding()
 
-        intersection = Gdk.rectangle_intersect(event_rect, check_rect)
-        if intersection[0]:
-            self._toggle_path(path)
+            intersection = Gdk.rectangle_intersect(event_rect, check_rect)
+            if intersection[0]:
+                self._toggle_path(path)
+                return True
+
+        # FIXME: This is to workaround a problem that, if the item's height is
+        # greater than the available space (and thus, it is cropped), double
+        # clicking it will make the scroll move but not activate it.
+        # We check if the scroll is really different to avoid activating the
+        # item twice when the item is not cropped.
+        # Note: Gtk considers a double click if the first event happened
+        # with a difference of a quarter of second from the other.
+        event_time = event.get_time()
+        scroll = self.get_vadjustment().get_value()
+        if (path == self._button_press_path and
+                event_time - self._button_press_time <= 250 and
+                scroll != self._button_press_scroll):
+            self._button_press_time = 0
+            self._button_press_scroll = None
+            self._button_press_path = None
+            self.item_activated(path)
             return True
+
+        self._button_press_scroll = scroll
+        self._button_press_time = event_time
+        self._button_press_path = path
 
         return False
 
