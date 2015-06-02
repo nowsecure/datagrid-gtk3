@@ -1175,14 +1175,19 @@ class DataGridView(Gtk.TreeView):
                 col.set_resizable(True)
                 # Set the minimum width for the column based on the width
                 # of the label and some padding
-                col.set_min_width(self._get_pango_string_width(lbl) + 14)
+                width = self._get_pango_string_width(lbl) + 14
                 col.set_fixed_width(
                     self._get_best_column_width(column_index, samples))
                 col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
                 col.set_expand(column['expand'])
                 if item == self.active_sort_column:
+                    # When the column is expanded, leave a little more
+                    # space for the sort indicator
+                    width += self._get_pango_string_width(
+                        u" \u25BC".encode('utf-8'))
                     col.set_sort_indicator(True)
                     col.set_sort_order(self.active_sort_column_order)
+                col.set_min_width(width)
                 self.append_column(col)
 
         self.set_headers_clickable(True)
