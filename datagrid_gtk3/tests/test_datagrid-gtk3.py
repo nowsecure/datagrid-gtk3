@@ -354,8 +354,9 @@ class TransformationsTest(unittest.TestCase):
     def setUp(self):  # noqa
         """Create test data."""
         self.datagrid_model = DataGridModel(
-            data_source=SQLiteDataSource('', 'test',
-                                         ensure_selected_column=False),
+            data_source=SQLiteDataSource(
+                '', 'test',
+                ensure_selected_column=False, ensure_primary_key=False),
             get_media_callback=mock.MagicMock(),
             decode_fallback=mock.MagicMock()
         )
@@ -684,7 +685,8 @@ class TransformationsTest(unittest.TestCase):
         self.datagrid_model.columns = [
             {'name': transform_type,
              'transform': transform_type,
-             'transform_options': transform_options}]
+             'transform_options': transform_options,
+             'from_config': True}]
         return self.datagrid_model.get_formatted_value(value, 0)
 
 

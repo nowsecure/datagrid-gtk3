@@ -1716,7 +1716,12 @@ class DataGridModel(GenericTreeModel):
         transformer = get_transformer(transformer_name)
         transformer_kwargs = {}
 
-        if value is not None and 'type' in col_dict:
+        # Only enforce value type if the config was provided. Otherwise,
+        # we would just be spamming a lot of obvious warnings (we got the type
+        # from introspecting the database and for sqlite, it has a high
+        # probability of not being an exact match in python).
+        if (col_dict['from_config'] and
+                value is not None and 'type' in col_dict):
             # Try enforcing value type
             value = self._enforce_value_type(value, col_dict['type'])
 
