@@ -22,6 +22,11 @@ mimetypes.init()
 # of already generated drop shadows so they can be reutilized
 _drop_shadows_cache = {}
 
+default_icon_theme = Gtk.IconTheme.get_default()
+_icon_theme = Gtk.IconTheme()
+_icon_theme.set_search_path(default_icon_theme.get_search_path())
+_icon_filename_cache = {}
+
 
 def get_icon_filename(choose_list, size):
     """Get a theme icon filename.
@@ -33,9 +38,8 @@ def get_icon_filename(choose_list, size):
     :return: the path to the icon
     :rtype: str
     """
-    icon_theme = Gtk.IconTheme.get_default()
-    icon = icon_theme.choose_icon(choose_list, size,
-                                  Gtk.IconLookupFlags.NO_SVG)
+    icon = _icon_theme.choose_icon(choose_list, size,
+                                   Gtk.IconLookupFlags.NO_SVG)
     return icon and icon.get_filename()
 
 
@@ -53,13 +57,16 @@ def get_icon_for_file(filename, size):
     """
     if os.path.isdir(filename):
         # mimetypes.guess_type doesn't work for folders
-        mimetype = 'folder'
-        details = 'folder'
+        guessed_mime = 'folder/folder'
     else:
         # Fallback to unknown if mimetypes wasn't able to guess it
         guessed_mime = mimetypes.guess_type(filename)[0] or 'unknown/unknown'
-        # Is there any value returned by guess_type that would have no /?
-        mimetype, details = guessed_mime.split('/')
+
+    if guessed_mime in _icon_filename_cache:
+        return _icon_filename_cache[guessed_mime]
+
+    # Is there any value returned by guess_type that would have no /?
+    mimetype, details = guessed_mime.split('/')
 
     # FIXME: guess_type mimetype is formatted differently from what
     # Gtk.IconTheme expects. We are trying to improve matching here.
@@ -70,7 +77,9 @@ def get_icon_for_file(filename, size):
     icon_list.append('%s-x-generic' % (mimetype, ))
     icon_list.append('unknown')
 
-    return get_icon_filename(icon_list, size)
+    icon_filename = get_icon_filename(icon_list, size)
+    _icon_filename_cache[guessed_mime] = icon_filename
+    return icon_filename
 
 
 def image2pixbuf(image):
