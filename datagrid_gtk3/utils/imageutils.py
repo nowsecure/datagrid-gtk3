@@ -8,9 +8,11 @@ import collections
 import io
 import mimetypes
 import os
+import struct
 import threading
 
 from gi.repository import (
+    GLib,
     GObject,
     GdkPixbuf,
     Gtk,
@@ -351,22 +353,7 @@ class ImageCacheManager(GObject.GObject):
         :rtype: :class:`GdkPixbuf.Pixbuf`
         """
         path = path or ''
-        try:
-            image = Image.open(path)
-            if draft:
-                image.draft('P', (size, size))
-            image.load()
-        except IOError:
-            # Size will always be rounded to the next value. After 48, the
-            # next is 256 and we don't want something that big here.
-            fallback_size = min(size, 48)
-            # If the image is damaged for some reason, use fallback for
-            # its mimetype. Maybe the image is not really an image
-            # (it could be a video, a plain text file, etc)
-            fallback = get_icon_for_file(path, fallback_size)
-            image = Image.open(fallback)
-
-        image.thumbnail((size, size), Image.BICUBIC)
+        image = self._open_image(path, size, draft)
 
         if draw_border:
             image = add_border(image, border_size=self.IMAGE_BORDER_SIZE)
@@ -405,3 +392,45 @@ class ImageCacheManager(GObject.GObject):
         pixbuf.copy_area(0, 0, width, height, square_pic, dest_x, dest_y)
 
         return square_pic
+
+    def _open_image(self, path, size, draft):
+        """Open the image on the given path.
+
+        :param str path: the image path
+        :param int size: the size to resize the image. It will be resized
+            to fit a square of (size, size)
+        :param bool draft: if we should load the image as a draft. This
+            trades a little quality for a much higher performance.
+        :returns: the opened image
+        :rtype: :class:`PIL.Image`
+        """
+        # When trying to open the brokensuit images
+        # (https://code.google.com/p/javapng/wiki/BrokenSuite), PIL failed to
+        # open 27 of them, while Pixbuf failed to open 32. But trying PIL first
+        # and Pixbuf if it failed reduced that number to 20.
+        # In general, most of the images (specially if they are not broken,
+        # which is something more uncommon) will be opened directly by PIL.
+        try:
+            image = Image.open(path)
+            if draft:
+                image.draft('P', (size, size))
+            image.load()
+        except (IOError, SyntaxError, OverflowError, struct.error) as e:
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
+            except GLib.GError:
+                # Size will always be rounded to the next value. After 48, the
+                # next is 256 and we don't want something that big here.
+                fallback_size = min(size, 48)
+                # If the image is damaged for some reason, use fallback for
+                # its mimetype. Maybe the image is not really an image
+                # (it could be a video, a plain text file, etc)
+                fallback = get_icon_for_file(path, fallback_size)
+                image = Image.open(fallback)
+            else:
+                image = Image.fromstring(
+                    "RGB", (pixbuf.get_width(), pixbuf.get_height()),
+                    pixbuf.get_pixels())
+
+        image.thumbnail((size, size), Image.BICUBIC)
+        return image
