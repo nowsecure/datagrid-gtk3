@@ -8,6 +8,9 @@ datagrid_gtk3
 .. image:: https://coveralls.io/repos/nowsecure/datagrid-gtk3/badge.svg
     :target: https://coveralls.io/r/nowsecure/datagrid-gtk3
 
+.. image:: https://badge.fury.io/py/datagrid_gtk3.svg
+    :target: http://badge.fury.io/py/datagrid_gtk3
+
 
 SYNOPSIS
 ========
