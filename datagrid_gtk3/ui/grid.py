@@ -554,6 +554,7 @@ class DataGridController(object):
         combo.pack_start(renderer, True)
         combo.add_attribute(renderer, 'text', 0)
         combo.set_active(0)
+        combo.set_id_column(0)
 
         combo.connect('changed', self.on_filter_changed, attr)
 
