@@ -490,15 +490,17 @@ class SQLiteDataSource(DataSource):
                        primary_key=c.primary_key, default=c.default)
                 for c in table.columns.values()]
             new_cols.append(Column(candidate, INTEGER, primary_key=True))
-            new_table = Table('__tmp', db.metadata, *new_cols)
+            tmp_name = '__tmp_' + t_name
+            new_table = Table(tmp_name, db.metadata, *new_cols)
             new_table.create()
 
             with closing(conn.cursor()) as cursor:
                 cursor.execute(
-                    "INSERT INTO __tmp SELECT *, null FROM %s" % (t_name, ))
+                    "INSERT INTO %s SELECT *, null FROM %s" % (
+                        tmp_name, t_name))
                 cursor.execute("DROP TABLE %s" % (t_name, ))
                 cursor.execute(
-                    "ALTER TABLE __tmp RENAME TO %s" % (t_name, ))
+                    "ALTER TABLE %s RENAME TO %s" % (tmp_name, t_name))
                 conn.commit()
 
             self.ID_COLUMN = candidate
