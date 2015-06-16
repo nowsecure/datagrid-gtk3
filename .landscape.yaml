@@ -1,0 +1,5 @@
+doc-warnings: yes
+strictness: high
+max-line-length: 79
+ignore-paths:
+  - docs
