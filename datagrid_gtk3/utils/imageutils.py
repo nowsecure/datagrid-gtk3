@@ -16,6 +16,7 @@ from gi.repository import (
     GObject,
     GdkPixbuf,
     Gtk,
+    Gdk,
 )
 from PIL import Image, ImageFilter
 
@@ -24,9 +25,7 @@ mimetypes.init()
 # of already generated drop shadows so they can be reutilized
 _drop_shadows_cache = {}
 
-default_icon_theme = Gtk.IconTheme.get_default()
-_icon_theme = Gtk.IconTheme()
-_icon_theme.set_search_path(default_icon_theme.get_search_path())
+_icon_theme = Gtk.IconTheme.get_default()
 _icon_filename_cache = {}
 
 
@@ -294,11 +293,23 @@ class ImageCacheManager(GObject.GObject):
                 self._waiting.add(params)
                 self._queue.put(params)
 
-        placeholder_key = tuple(params[1:])
+        # Size will always be rounded to the next value. After 48, the
+        # next is 256 and we don't want something that big here.
+        fallback_size = min(size, 48)
+        fallback = get_icon_for_file(path or '', fallback_size)
+
+        placeholder_key = (fallback, ) + tuple(params[1:])
         placeholder = self._placeholders.get(placeholder_key, None)
         if placeholder is None:
-            placeholder = self._transform_image(None, *placeholder_key)
+            # If the image is damaged for some reason, use fallback for
+            # its mimetype. Maybe the image is not really an image
+            # (it could be a video, a plain text file, etc)
+            placeholder = self._transform_image(
+                fallback, fallback_size, *params[2:])
             self._placeholders[placeholder_key] = placeholder
+            # Make the placeholder the initial value for the image. If the
+            # loading fails, it will be used as the pixbuf for the image.
+            self._cache[params] = placeholder
 
         return placeholder
 
@@ -342,6 +353,9 @@ class ImageCacheManager(GObject.GObject):
                 continue
 
             pixbuf = self._transform_image(*params)
+            if pixbuf is None:
+                continue
+
             with self._lock:
                 self._cache_pixbuf(params, pixbuf)
             GObject.idle_add(self.emit, 'image-loaded')
@@ -363,6 +377,8 @@ class ImageCacheManager(GObject.GObject):
         """
         path = path or ''
         image = self._open_image(path, size, draft)
+        if image is None:
+            return None
 
         if draw_border:
             image = add_border(image, border_size=self.IMAGE_BORDER_SIZE)
@@ -428,14 +444,7 @@ class ImageCacheManager(GObject.GObject):
             try:
                 pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
             except GLib.GError:
-                # Size will always be rounded to the next value. After 48, the
-                # next is 256 and we don't want something that big here.
-                fallback_size = min(size, 48)
-                # If the image is damaged for some reason, use fallback for
-                # its mimetype. Maybe the image is not really an image
-                # (it could be a video, a plain text file, etc)
-                fallback = get_icon_for_file(path, fallback_size)
-                image = Image.open(fallback)
+                return None
             else:
                 image = Image.fromstring(
                     "RGB", (pixbuf.get_width(), pixbuf.get_height()),
