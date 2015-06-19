@@ -356,7 +356,7 @@ class TransformationsTest(unittest.TestCase):
         self.datagrid_model = DataGridModel(
             data_source=SQLiteDataSource(
                 '', 'test',
-                ensure_selected_column=False, ensure_primary_key=False),
+                ensure_selected_column=False),
             get_media_callback=mock.MagicMock(),
             decode_fallback=mock.MagicMock()
         )

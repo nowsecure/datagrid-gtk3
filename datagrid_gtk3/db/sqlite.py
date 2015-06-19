@@ -68,9 +68,6 @@ class SQLiteDataSource(DataSource):
         names, data types, transforms, etc.
     :param bool ensure_selected_column: Whether to ensure the presence of
         the __selected column.
-    :param bool ensure_primary_key: if we should ensure the presence of
-        a primary key on the table. If this is `True` and no primary
-        key is found, one will be created for you.
     :param bool display_all: Whether or not all columns should be displayed.
     :param str query: Full custom query to be used instead of the table name.
     :param bool persist_columns_visibility: Weather we should persist
@@ -96,7 +93,7 @@ class SQLiteDataSource(DataSource):
     }
 
     def __init__(self, db_file, table=None, update_table=None, config=None,
-                 ensure_primary_key=True, ensure_selected_column=True,
+                 ensure_selected_column=True,
                  display_all=False, query=None,
                  persist_columns_visibility=True):
         """Process database column info."""
@@ -109,7 +106,6 @@ class SQLiteDataSource(DataSource):
         if query:
             logger.debug("Custom SQL: %s", query)
         self._persist_columns_visibility = persist_columns_visibility
-        self._ensure_primary_key = ensure_primary_key
         self._ensure_selected_column = ensure_selected_column
         self.display_all = display_all
         # FIXME: Use sqlalchemy for queries using update_table
@@ -454,7 +450,7 @@ class SQLiteDataSource(DataSource):
         """
         # FIXME: What to do when using temporary views?
         if self.query:
-            return
+            return True
 
         with closing(conn.cursor()) as cursor:
             cursor.execute('PRAGMA table_info(%s)' % (self.table.name, ))
@@ -464,46 +460,16 @@ class SQLiteDataSource(DataSource):
 
         # First check if there's any row that matches self.ID_COLUMN
         if self.ID_COLUMN in row_names:
-            return
+            return True
 
         # Then try to find any row that has its primary key flag set to True
         for row in rows:
             if row[5]:  # primary key
                 self.ID_COLUMN = row[1]
-                return
+                return True
 
-        # If nothing worked and we need to ensure primary key or selected
-        # column, lets add it. Since sqlite doesn't allow us to add primary
-        # keys to existing tables, we are working around that by creating a
-        # new one with a primary key, copying everything from the previous
-        # table there.
-        if self._ensure_primary_key or self._ensure_selected_column:
-            t_name = self.table.name
-            candidate = '__id'
-            while candidate in row_names:
-                candidate = '_' + candidate
-
-            db = Database(self.db_file)
-            table = db.reflect(t_name)
-            new_cols = [
-                Column(c.name, c.type,
-                       primary_key=c.primary_key, default=c.default)
-                for c in table.columns.values()]
-            new_cols.append(Column(candidate, INTEGER, primary_key=True))
-            tmp_name = '__tmp_' + t_name
-            new_table = Table(tmp_name, db.metadata, *new_cols)
-            new_table.create()
-
-            with closing(conn.cursor()) as cursor:
-                cursor.execute(
-                    "INSERT INTO %s SELECT *, null FROM %s" % (
-                        tmp_name, t_name))
-                cursor.execute("DROP TABLE %s" % (t_name, ))
-                cursor.execute(
-                    "ALTER TABLE %s RENAME TO %s" % (tmp_name, t_name))
-                conn.commit()
-
-            self.ID_COLUMN = candidate
+        self.ID_COLUMN = '_rowid_'
+        return False
 
     def get_columns(self):
         """Return a list of column information dicts.
@@ -525,13 +491,18 @@ class SQLiteDataSource(DataSource):
         """
         cols = []
         with closing(sqlite3.connect(self.db_file)) as conn:
-            self._ensure_primary_key_column(conn)
+            has_primary_key = self._ensure_primary_key_column(conn)
 
             with closing(conn.cursor()) as cursor:
                 self._ensure_temp_view(cursor)
                 table_info_query = 'PRAGMA table_info(%s)' % self.table.name
                 cursor.execute(table_info_query)
                 rows = cursor.fetchall()
+                # If the table doesn't have a real primary key,
+                # we will use its rowid, but it is not present on table_info
+                if not has_primary_key:
+                    rows.append(
+                        (len(rows), self.ID_COLUMN, 'INTEGER', 0, '', 1))
 
                 has_selected = False
                 counter = 0
