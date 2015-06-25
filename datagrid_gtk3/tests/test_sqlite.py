@@ -51,7 +51,7 @@ class SQLiteDataSourceTest(unittest.TestCase):
         }
         rows = self.datasource.load(param)
         self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0].data[3], 'Goldman')
+        self.assertEqual(rows[0].data[2], 'Goldman')
 
     def test_load_with_where_param(self):
         """Filter results with a search param."""
@@ -66,21 +66,21 @@ class SQLiteDataSourceTest(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(
             {('Oscar', 'Goldman'), ('Monica', 'Goldman')},
-            {(row.data[2], row.data[3]) for row in rows})
+            {(row.data[1], row.data[2]) for row in rows})
 
     def test_load_paging(self):
         """Load first and second pages of records."""
         self.datasource.load()  # initial load is always without paging
         rows = self.datasource.load({'page': 1})
         self.assertEqual(len(rows), 2)
-        self.assertEqual(rows[0].data[3], 'Goldman')
+        self.assertEqual(rows[0].data[2], 'Goldman')
 
     def test_update(self):
         """Update __selected in first record in data set."""
         self.datasource.update({'__selected': True}, [1])
         # ^^ update row with id 1
         rows = self.datasource.load()
-        self.assertEqual(rows[0].data[1], 1)
+        self.assertEqual(rows[0].data[0], 1)
 
     def test_get_all_record_ids(self):
         """Get all record ids for a particular query."""
@@ -102,9 +102,9 @@ class SQLiteDataSourceTest(unittest.TestCase):
     def test_get_single_record(self):
         """Retrieve a single record as a tuple of values."""
         row = self.datasource.get_single_record(1)
-        self.assertEqual(row[1], 1)
-        self.assertEqual(row[2], 'Dee')
-        self.assertEqual(row[3], 'Timberlake')
+        self.assertEqual(row[0], 1)
+        self.assertEqual(row[1], 'Dee')
+        self.assertEqual(row[2], 'Timberlake')
 
     def test_select(self):
         """Get data without class instance or paging."""

@@ -504,12 +504,12 @@ class SQLiteDataSource(DataSource):
                     rows.append(
                         (len(rows), self.ID_COLUMN, 'INTEGER', 0, '', 1))
 
+                skip_config = [self.ID_COLUMN, self.SELECTED_COLUMN]
                 has_selected = False
                 counter = 0
                 for i, row in enumerate(rows):
                     col_name = row[1]
-                    if self.config is not None and (
-                            col_name not in [self.ID_COLUMN, '__selected']):
+                    if self.config is not None and col_name not in skip_config:
                         display_name = self.config[counter].get(
                             'alias', self.config[counter]['column'])
                         data_type = self.STRING_PY_TYPES[
@@ -547,22 +547,21 @@ class SQLiteDataSource(DataSource):
                         self.children_len_column_idx = i
                     if col_name == self.FLAT_COLUMN:
                         self.flat_column_idx = i
-
-                    if row[1] == '__selected':
-                        col_dict['transform'] = 'boolean'
-                        cols.insert(0, col_dict)
+                    if col_name == self.SELECTED_COLUMN:
+                        self.selected_column_idx = i
                         has_selected = True
-                    else:
-                        cols.append(col_dict)
+                        col_dict['transform'] = 'boolean'
+
+                    cols.append(col_dict)
 
                 if self._ensure_selected_column and not has_selected:
-                    alter_sql = 'ALTER TABLE %s ADD __selected INTEGER' % (
-                        self.update_table)
+                    alter_sql = 'ALTER TABLE %s ADD %s INTEGER' % (
+                        self.update_table, self.SELECTED_COLUMN)
                     cursor.execute(alter_sql)
                     conn.commit()
                     col_dict = {
-                        'name': '__selected',
-                        'display': '__selected',
+                        'name': self.SELECTED_COLUMN,
+                        'display': self.SELECTED_COLUMN,
                         'type': int,
                         'transform': 'boolean',
                         'transform_options': 'boolean',
@@ -570,20 +569,8 @@ class SQLiteDataSource(DataSource):
                         'visible': True,
                         'from_config': False,
                     }
-                    cols.insert(0, col_dict)
-                    has_selected = True
-
-                # If __selected column is present, it was inserted on position
-                # 0, so we need to increase the id/parent columns by 1
-                if has_selected:
-                    if self.id_column_idx is not None:
-                        self.id_column_idx += 1
-                    if self.parent_column_idx is not None:
-                        self.parent_column_idx += 1
-                    if self.children_len_column_idx is not None:
-                        self.children_len_column_idx += 1
-                    if self.flat_column_idx is not None:
-                        self.flat_column_idx += 1
+                    self.selected_column_idx = len(cols)
+                    cols.append(col_dict)
 
         return cols
 
