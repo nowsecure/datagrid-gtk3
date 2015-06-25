@@ -44,6 +44,7 @@ class DataSource(object):
     """Base class for data sources."""
 
     ID_COLUMN = 'rowid'
+    SELECTED_COLUMN = '__selected'
     PARENT_ID_COLUMN = None
     CHILDREN_LEN_COLUMN = None
     FLAT_COLUMN = None
@@ -56,6 +57,7 @@ class DataSource(object):
         self.parent_column_idx = None
         self.children_len_column_idx = None
         self.flat_column_idx = None
+        self.selected_column_idx = None
 
     def get_visible_columns(self):
         return []

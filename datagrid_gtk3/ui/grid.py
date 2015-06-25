@@ -1112,7 +1112,8 @@ class DataGridView(Gtk.TreeView):
             where_params['where'] = self.model.active_params['where']
 
         ids = self.model.data_source.get_all_record_ids(where_params)
-        self.model.update_data_source('__selected', val, ids)
+        self.model.update_data_source(
+            self.model.data_source.SELECTED_COLUMN, val, ids)
 
         self.refresh()
 
@@ -1123,10 +1124,12 @@ class DataGridView(Gtk.TreeView):
     def _setup_columns(self):
         """Configure the column widgets in the view."""
         if self.has_checkboxes:
-            # NOTE: assumption here is that col index 0 is _selected bool field
             toggle_cell = Gtk.CellRendererToggle()
-            toggle_cell.connect('toggled', self.on_toggle, 0)
-            col = Gtk.TreeViewColumn('', toggle_cell, active=0)
+            toggle_cell.connect('toggled', self.on_toggle,
+                                self.model.data_source.selected_column_idx)
+            col = Gtk.TreeViewColumn(
+                '', toggle_cell,
+                active=self.model.data_source.selected_column_idx)
 
             check_btn = Gtk.CheckButton()
             col.set_widget(check_btn)
@@ -1147,7 +1150,7 @@ class DataGridView(Gtk.TreeView):
 
         # FIXME: We should find a better way for hiding this columns.
         # A way to specify the visibility on the columns config would be nice.
-        dont_display = set(['__selected'])
+        dont_display = set([self.model.data_source.SELECTED_COLUMN])
         if not self.model.data_source.display_all:
             dont_display.add(self.model.data_source.ID_COLUMN)
             dont_display.add(self.model.data_source.PARENT_ID_COLUMN)
@@ -1203,8 +1206,9 @@ class DataGridView(Gtk.TreeView):
         if self.check_btn_toggle_all is None:
             return
 
-        all_selected = all(row[0] for row in self.model)
-        any_selected = any(row[0] for row in self.model)
+        selected_idx = self.model.data_source.selected_column_idx
+        all_selected = all(row[selected_idx] for row in self.model)
+        any_selected = any(row[selected_idx] for row in self.model)
 
         with self.check_btn_toggle_all.handler_block(
                 self.check_btn_toggled_id):
@@ -1373,7 +1377,8 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
         """
         # For some reason, can't use super here
         Gtk.CellAreaBox.do_apply_attributes(self, model, iter_, *args)
-        self._is_checked = model.get_value(iter_, 0)
+        self._is_checked = model.get_value(
+            iter_, model.data_source.selected_column_idx)
 
 
 class DataGridIconView(Gtk.IconView):
@@ -1530,13 +1535,15 @@ class DataGridIconView(Gtk.IconView):
         :type itr: :class:`Gtk.TreePath`
         """
         iter_ = self.model.get_iter(path)
-        val = self.model.get_value(iter_, 0)
+        selected_idx = self.model.data_source.selected_column_idx
+        val = self.model.get_value(iter_, selected_idx)
         # FIXME: Gtk.IconView has some problems working with huge models.
         # It would invalidate everything on row changed, as can be seem here:
         # https://git.gnome.org/browse/gtk+/tree/gtk/gtkiconview.c
         # Atm we will avoid row-changed and just call queue_redraw which
         # will be a lot faster! We should try to find a better solution
-        self.model.set_value(iter_, 0, not val, emit_event=False)
+        self.model.set_value(iter_, selected_column_idx, not val,
+                             emit_event=False)
         self.queue_draw()
 
 
@@ -1730,7 +1737,8 @@ class DataGridModel(GenericTreeModel):
             logger.warning("No transformer found for %s", transformer_name)
             return value
 
-        if transformer_name == 'boolean' and col_name == '__selected':
+        if (transformer_name == 'boolean' and
+                col_name == self.data_source.SELECTED_COLUMN):
             # __selected is an exception to the boolean transformation.
             # It requires a bool value and not a pixbuf
             return bool(value)
@@ -1931,7 +1939,7 @@ class DataGridModel(GenericTreeModel):
 
     def on_get_column_type(self, index):
         """Return the type of a column in the model."""
-        if self.columns[index]["name"] == "__selected":
+        if self.columns[index]["name"] == self.data_source.SELECTED_COLUMN:
             return bool
         else:
             if self.columns[index]['transform'] in ['boolean', 'image']:
