@@ -112,7 +112,7 @@ class DataGridControllerTest(unittest.TestCase):
             scrolledwindow.get_child(), icon_view)
         self.assertEqual(self.model.image_max_size, 100.0)
         self.assertTrue(self.model.image_draw_border)
-        self.assertEqual(icon_view.pixbuf_column, 6)
+        self.assertEqual(icon_view.pixbuf_column, 5)
 
         # TreeView
         self.datagrid_controller.options_popup.emit(
