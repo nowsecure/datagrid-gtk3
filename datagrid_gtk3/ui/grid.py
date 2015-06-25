@@ -1542,7 +1542,7 @@ class DataGridIconView(Gtk.IconView):
         # https://git.gnome.org/browse/gtk+/tree/gtk/gtkiconview.c
         # Atm we will avoid row-changed and just call queue_redraw which
         # will be a lot faster! We should try to find a better solution
-        self.model.set_value(iter_, selected_column_idx, not val,
+        self.model.set_value(iter_, selected_idx, not val,
                              emit_event=False)
         self.queue_draw()
 
