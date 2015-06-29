@@ -426,3 +426,27 @@ def image_transform(path, size=24, fill_image=True, draw_border=False,
     cm = imageutils.ImageCacheManager.get_default()
     return cm.get_image(path, size, fill_image, draw_border,
                         draft, load_on_thread)
+
+
+@transformer('degree_decimal_str')
+def degree_decimal_str_transform(value, length=8):
+    """Transform degree decimal string to a numeric value.
+
+    The string is expected to have <length> digits, if less digits are found,
+    it will be prefixed with zeroes as needed.
+
+    :param value: Degrees encoded as a string with digits
+    :type value: str
+    :param length: Maximum expected string length
+    :type length: int
+
+    """
+    assert isinstance(value, basestring), 'String value expected'
+    assert value.isdigit(), 'All characters expected to be digits'
+    assert len(value) <= length, \
+        'String length expected to be {} or less'.format(length)
+    if len(value) < length:
+        value = '0' * (length - len(value)) + value
+
+    value = '{}.{}'.format(value[:2], value[2:])
+    return float(value)
