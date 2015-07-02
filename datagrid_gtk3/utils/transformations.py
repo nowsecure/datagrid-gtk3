@@ -3,6 +3,7 @@
 import datetime
 import logging
 import HTMLParser
+import re
 
 import dateutil.parser
 from gi.repository import Gtk
@@ -448,5 +449,9 @@ def degree_decimal_str_transform(value, length=8):
     if len(value) < length:
         value = '0' * (length - len(value)) + value
 
+    # Add decimal point at the expected location
     value = '{}.{}'.format(value[:2], value[2:])
+
+    # Remove non-significant leading zeroes
+    value = re.sub(r'0+(\d\.)', r'\1', value)
     return value
