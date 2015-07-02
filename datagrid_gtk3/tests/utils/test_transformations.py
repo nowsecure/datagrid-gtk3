@@ -30,9 +30,9 @@ class DegreeDecimalStrTransformTest(unittest.TestCase):
         """Decimal point is inserted in the expected location."""
         self.assertEqual(
             degree_decimal_str_transform('12345678'),
-            12.345678,
+            '12.345678',
         )
         self.assertEqual(
             degree_decimal_str_transform('123456'),
-            0.123456,
+            '0.123456',
         )
