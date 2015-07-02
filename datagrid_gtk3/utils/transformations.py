@@ -449,4 +449,4 @@ def degree_decimal_str_transform(value, length=8):
         value = '0' * (length - len(value)) + value
 
     value = '{}.{}'.format(value[:2], value[2:])
-    return float(value)
+    return value
