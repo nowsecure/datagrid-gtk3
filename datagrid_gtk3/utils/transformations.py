@@ -4,6 +4,8 @@ import datetime
 import logging
 import HTMLParser
 
+from decimal import Decimal
+
 import dateutil.parser
 from gi.repository import Gtk
 
@@ -445,8 +447,11 @@ def degree_decimal_str_transform(value, length=8):
     assert value.isdigit(), 'All characters expected to be digits'
     assert len(value) <= length, \
         'String length expected to be {} or less'.format(length)
-    if len(value) < length:
-        value = '0' * (length - len(value)) + value
+    value = value.zfill(length)
 
+    # Add decimal point at the expected location
     value = '{}.{}'.format(value[:2], value[2:])
-    return float(value)
+
+    # Remove non-significant leading zeroes
+    value = Decimal(value)
+    return str(value)
