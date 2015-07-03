@@ -19,6 +19,7 @@ from sqlalchemy.sql import (
     cast,
     alias,
     and_,
+    collate,
     column,
     desc,
     func,
@@ -182,7 +183,7 @@ class SQLiteDataSource(DataSource):
 
         # ORDER BY
         order_by = params.get('order_by', None)
-        order_by = order_by and self.table.columns[order_by]
+        order_by = order_by and collate(self.table.columns[order_by], 'NOCASE')
         if order_by is not None and params.get('desc', False):
             order_by = desc(order_by)
 
