@@ -286,10 +286,11 @@ class ImageCacheManager(GObject.GObject):
             # load it on a thread
             if not load_on_thread:
                 pixbuf = self._transform_image(*params)
-                self._cache_pixbuf(params, pixbuf)
-                return pixbuf
-
-            if params not in self._waiting:
+                # If no pixbuf, let the fallback image be returned
+                if pixbuf:
+                    self._cache_pixbuf(params, pixbuf)
+                    return pixbuf
+            elif params not in self._waiting:
                 self._waiting.add(params)
                 self._queue.put(params)
 
