@@ -568,6 +568,29 @@ class DataGridController(object):
 
         return combo
 
+    def set_selected_row_by_id(self, row_id, scroll_to_row=True):
+        """Set the selected row by id.
+
+        :param int row_id: the id of the row to set as the selected one
+        :param bool scroll_to_row: if we should scroll to that row,
+            putting it in the center of the window
+        """
+        row = self.model.get_row_by_id(row_id, load_rows=True)
+        if row is None:
+            logger.warning("No row found with id %s", row_id)
+            return
+
+        path = Gtk.TreePath(row.path)
+        self.view.set_cursor(path)
+
+        if scroll_to_row:
+            if self.view is self.tree_view:
+                GObject.idle_add(self.view.scroll_to_cell,
+                                 path, None, True, 0.5, 0.0)
+            elif self.view is self.icon_view:
+                GObject.idle_add(self.view.scroll_to_path,
+                                 path, True, 0.5, 0.0)
+
     ###
     # Callbacks
     ###
