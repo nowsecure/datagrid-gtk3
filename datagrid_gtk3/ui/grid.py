@@ -571,8 +571,8 @@ class DataGridController(object):
     def set_selected_row_by_id(self, row_id, scroll_to_row=True):
         """Set the selected row by id.
 
-        :param int row_id: the id of the row to set as the selected one
-        :param bool scroll_to_row: if we should scroll to that row,
+        :param int row_id: The id of the row to set as the selected one
+        :param bool scroll_to_row: If we should scroll to that row,
             putting it in the center of the window
         """
         row = self.model.get_row_by_id(row_id, load_rows=True)
