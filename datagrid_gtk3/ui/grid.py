@@ -1,16 +1,18 @@
 """Module containing classes for datagrid MVC implementation."""
 
 import base64
+import contextlib
 import datetime
 import itertools
 import logging
 import os
 
 from gi.repository import (
+    GLib,
     GObject,
+    Gdk,
     GdkPixbuf,
     Gtk,
-    Gdk,
     Pango,
 )
 from pygtkcompat.generictreemodel import GenericTreeModel
@@ -568,28 +570,47 @@ class DataGridController(object):
 
         return combo
 
-    def set_selected_row_by_id(self, row_id, scroll_to_row=True):
+    def set_selected_row_by_id(self, row_id,
+                               scroll_to_row=True, callback=None):
         """Set the selected row by id.
 
         :param int row_id: The id of the row to set as the selected one
         :param bool scroll_to_row: If we should scroll to that row,
             putting it in the center of the window
+        :param callable callback: A callback to call after the
+            rows has been loaded
         """
         row = self.model.get_row_by_id(row_id, load_rows=True)
         if row is None:
             logger.warning("No row found with id %s", row_id)
+            if callback is not None:
+                assert callable(callback)
+                callback()
             return
 
         path = Gtk.TreePath(row.path)
         self.view.set_cursor(path)
 
-        if scroll_to_row:
-            if self.view is self.tree_view:
-                GObject.idle_add(self.view.scroll_to_cell,
-                                 path, None, True, 0.5, 0.0)
-            elif self.view is self.icon_view:
-                GObject.idle_add(self.view.scroll_to_path,
-                                 path, True, 0.5, 0.0)
+
+        def _callback():
+            """Timeout callback."""
+            if scroll_to_row:
+                with self.view.block_draw():
+                    if self.view is self.tree_view:
+                        self.view.scroll_to_cell(path, None, True, 0.5, 0.0)
+                    elif self.view is self.icon_view:
+                        self.view.scroll_to_path(path, True, 0.5, 0.0)
+
+            if callback is not None:
+                assert callable(callback)
+                GObject.idle_add(callback)
+
+        # Acording to the documentation, PRIORITY_HIGH_IDLE + 20 is
+        # used by redrawing operations so PRIORITY_HIGH_IDLE + 25
+        # should be enought to make sure we call callback just after
+        # the widget finishes redrawing itself.
+        GObject.timeout_add(100, _callback,
+                            priority=GLib.PRIORITY_HIGH_IDLE + 25)
 
     ###
     # Callbacks
@@ -991,9 +1012,32 @@ class DataGridView(Gtk.TreeView):
         self._all_expanded = False
         self._block_all_expanded = False
 
+        self._block_draw = False
+
     ###
     # Public
     ###
+
+    @contextlib.contextmanager
+    def block_draw(self):
+        """Block the drawing of this widget.
+
+        While inside this context, this widget will not be draw.
+        """
+        self._block_draw = True
+        yield
+        self._block_draw = False
+        self.queue_draw()
+
+    def do_draw(self, cr):
+        """Do the drawing of this widget.
+
+        :param cr: The cairo context context
+        :type cr: :class:`cairo.Context`
+        """
+        if self._block_draw:
+            return
+        return Gtk.TreeView.do_draw(self, cr)
 
     def refresh(self):
         """Refresh the model results."""
@@ -1435,9 +1479,32 @@ class DataGridIconView(Gtk.IconView):
         self.connect('button-release-event', self.on_button_release_event)
         self.connect('key-press-event', self.on_key_press_event)
 
+        self._block_draw = False
+
     ###
     # Public
     ###
+
+    @contextlib.contextmanager
+    def block_draw(self):
+        """Block the drawing of this widget.
+
+        While inside this context, this widget will not be draw.
+        """
+        self._block_draw = True
+        yield
+        self._block_draw = False
+        self.queue_draw()
+
+    def do_draw(self, cr):
+        """Do the drawing of this widget.
+
+        :param cr: The cairo context context
+        :type cr: :class:`cairo.Context`
+        """
+        if self._block_draw:
+            return
+        return Gtk.IconView.do_draw(self, cr)
 
     def refresh(self):
         """Refresh the model results."""
