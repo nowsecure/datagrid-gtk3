@@ -183,9 +183,13 @@ class SQLiteDataSource(DataSource):
 
         # ORDER BY
         order_by = params.get('order_by', None)
-        order_by = order_by and collate(self.table.columns[order_by], 'NOCASE')
+        # Do a numeric ordering first, as suggested here
+        # (http://stackoverflow.com/a/4204641), and then a case-insensitive one
+        order_by = (order_by and
+                    [self.table.columns[order_by] + 0,
+                     collate(self.table.columns[order_by], 'NOCASE')])
         if order_by is not None and params.get('desc', False):
-            order_by = desc(order_by)
+            order_by = [desc(col) for col in order_by]
 
         # OFFSET
         page = params.get('page', 0)
