@@ -1400,8 +1400,9 @@ class DataGridCellAreaRenderer(Gtk.CellAreaBox):
         """
         # For some reason, can't use super here
         Gtk.CellAreaBox.do_apply_attributes(self, model, iter_, *args)
-        self._is_checked = model.get_value(
-            iter_, model.data_source.selected_column_idx)
+        if model.data_source.selected_column_idx:
+            self._is_checked = model.get_value(
+                iter_, model.data_source.selected_column_idx)
 
 
 class DataGridIconView(Gtk.IconView):
