@@ -2,7 +2,7 @@
 
 __author__ = 'NowSecure, Inc.'
 __email__ = 'info@nowsecure.com'
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 import logging
 import os
