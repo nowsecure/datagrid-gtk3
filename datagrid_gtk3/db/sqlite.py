@@ -4,8 +4,10 @@ import logging
 import operator
 import sqlite3
 import struct
+import weakref
 from contextlib import closing
 
+from gi.repository import GObject
 from sqlalchemy import (
     Column,
     INTEGER,
@@ -75,6 +77,12 @@ class SQLiteDataSource(DataSource):
         the columns visibility in the database.
     """
 
+    __gsignals__ = {
+        'rows-changed': (GObject.SignalFlags.RUN_LAST, None, (object, object)),
+    }
+
+    _DBS = weakref.WeakValueDictionary()
+
     MAX_RECS = 100
     SQLITE_PY_TYPES = {
         'INT': long,
@@ -116,6 +124,9 @@ class SQLiteDataSource(DataSource):
             self.update_table = table
         self.config = config
         self.columns = self.get_columns()
+        self.columns_idx = {
+            col['name']: i for i, col in enumerate(self.columns)}
+
         for col in self.columns:
             self.table.append_column(column(col['name']))
 
@@ -142,6 +153,8 @@ class SQLiteDataSource(DataSource):
                     cursor.execute('ALTER TABLE _selected_columns '
                                    'RENAME TO __visible_columns')
                     conn.commit()
+
+        self.__class__._DBS[(db_file, self.table.name, id(self))] = self
 
     ###
     # Public
@@ -268,6 +281,14 @@ class SQLiteDataSource(DataSource):
                         self.update_table, update_sql_str)
                     cursor.execute(sql)
                 conn.commit()
+
+        for (db_file, table_name, id_), db in self.__class__._DBS.items():
+            if db is self:
+                continue
+            if (db_file, table_name) != (self.db_file, self.table.name):
+                continue
+
+            db.emit('rows-changed', params, ids)
 
     def get_all_record_ids(self, params=None):
         """Get all the record primary keys for given params.

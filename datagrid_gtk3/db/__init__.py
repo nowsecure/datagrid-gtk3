@@ -5,6 +5,8 @@ backends (eg. SQLite)
 
 """
 
+from gi.repository import GObject
+
 
 class Node(list):
 
@@ -40,7 +42,7 @@ class Node(list):
         return loaded
 
 
-class DataSource(object):
+class DataSource(GObject.GObject):
     """Base class for data sources."""
 
     ID_COLUMN = 'rowid'
@@ -50,6 +52,7 @@ class DataSource(object):
     FLAT_COLUMN = None
 
     def __init__(self):
+        super(DataSource, self).__init__()
         self.columns = []
         self.total_recs = 0
         self.display_all = True
