@@ -83,3 +83,7 @@ class DataSource(GObject.GObject):
 
 class EmptyDataSource(DataSource):
     """Data source that can be used when an empty data grid is required."""
+
+    __gsignals__ = {
+        'rows-changed': (GObject.SignalFlags.RUN_LAST, None, (object, object)),
+    }
