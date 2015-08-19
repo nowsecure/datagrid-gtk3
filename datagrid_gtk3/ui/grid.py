@@ -240,8 +240,10 @@ class OptionsPopup(Gtk.Window):
     def _get_visibility_options(self):
         """Construct the switches based on the actual model columns."""
         model = self._controller.model
+        hidden_columns = model.hidden_columns
+
         for column in model.columns:
-            if column['name'].startswith('__'):
+            if column['name'] in hidden_columns:
                 continue
 
             switch = Gtk.Switch()
@@ -1215,21 +1217,13 @@ class DataGridView(Gtk.TreeView):
             self.check_btn_toggle_all = check_btn
             self.append_column(col)
 
-        # FIXME: We should find a better way for hiding this columns.
-        # A way to specify the visibility on the columns config would be nice.
-        dont_display = set([self.model.data_source.SELECTED_COLUMN])
-        if not self.model.data_source.display_all:
-            dont_display.add(self.model.data_source.ID_COLUMN)
-            dont_display.add(self.model.data_source.PARENT_ID_COLUMN)
-            if not self.model.active_params.get('flat', False):
-                dont_display.add(self.model.data_source.FLAT_COLUMN)
-
+        hidden_columns = self.model.hidden_columns
         samples = list(itertools.islice(
             (r.data for r in self.model.iter_rows()), self.SAMPLE_SIZE))
         for column_index, column in enumerate(self.model.columns):
             item = column['name']
             display = item in self.model.display_columns
-            if display and column['name'] not in dont_display:
+            if display and column['name'] not in hidden_columns:
                 item_display = column['display']
                 if column['transform'] in ['boolean', 'image']:
                     renderer = Gtk.CellRendererPixbuf()
@@ -1710,6 +1704,17 @@ class DataGridModel(GenericTreeModel):
         self.flat_column_idx = None
         self.rows = None
         self.total_recs = None
+
+    @property
+    def hidden_columns(self):
+        """A set of columns names that should not be displayed on the view."""
+        hidden = {self.data_source.SELECTED_COLUMN}
+        if not self.data_source.display_all:
+            hidden.add(self.data_source.ID_COLUMN)
+            hidden.add(self.data_source.PARENT_ID_COLUMN)
+            if not self.active_params.get('flat', False):
+                hidden.add(self.data_source.FLAT_COLUMN)
+        return hidden
 
     def refresh(self):
         """Refresh the model from the data source."""
