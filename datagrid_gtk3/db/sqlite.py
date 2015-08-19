@@ -282,6 +282,11 @@ class SQLiteDataSource(DataSource):
                     cursor.execute(sql)
                 conn.commit()
 
+        # Emit rows-changed for any other databases connected to the same
+        # database and table. This is to allow any view using them
+        # to update themselves with the changes done here.
+        # The current object will not emit the event as it is the one who
+        # made the update and thus, is assumed to know about the changes
         for db in self.__class__._DBS:
             if db is self:
                 continue
