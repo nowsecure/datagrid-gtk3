@@ -81,7 +81,7 @@ class SQLiteDataSource(DataSource):
         'rows-changed': (GObject.SignalFlags.RUN_LAST, None, (object, object)),
     }
 
-    _DBS = weakref.WeakValueDictionary()
+    _DBS = weakref.WeakSet()
 
     MAX_RECS = 100
     SQLITE_PY_TYPES = {
@@ -154,7 +154,7 @@ class SQLiteDataSource(DataSource):
                                    'RENAME TO __visible_columns')
                     conn.commit()
 
-        self.__class__._DBS[(db_file, self.table.name, id(self))] = self
+        self.__class__._DBS.add(self)
 
     ###
     # Public
@@ -282,10 +282,10 @@ class SQLiteDataSource(DataSource):
                     cursor.execute(sql)
                 conn.commit()
 
-        for (db_file, table_name, id_), db in self.__class__._DBS.items():
+        for db in self.__class__._DBS:
             if db is self:
                 continue
-            if (db_file, table_name) != (self.db_file, self.table.name):
+            if (db.db_file, db.table.name) != (self.db_file, self.table.name):
                 continue
 
             db.emit('rows-changed', params, ids)
