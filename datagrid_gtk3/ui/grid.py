@@ -521,6 +521,7 @@ class DataGridController(object):
                 widget.show()
 
         self._refresh_view()
+        data_source.connect('rows-changed', self.on_data_source_rows_changed)
 
     def add_options_filter(self, attr, options, add_empty_option=True):
         """Add optional options filter for attr.
@@ -823,6 +824,39 @@ class DataGridController(object):
 
         self._refresh_view(update_dict=update_dict, remove_keys=remove_keys)
 
+    def on_data_source_rows_changed(self, data_source, params, ids):
+        """Handle data_source rows-changed signal.
+
+        When a row gets updated on data source, make sure to reflect
+        them on the view, without requiring to do an extra query for that.
+
+        :param data_source: The data source which emitted the signal
+        :type data_source: `datagrid_gtk3.db.DataSource`
+        :param params: A dict of params that got updated, mapped as
+            ``column_name: new_value``
+        :type params: dict
+        :param ids: The row ids that got updated
+        :type ids: [int]
+        """
+        params_idx = [
+            (self.model.data_source.columns_idx[k], v)
+            for k, v in params.iteritems()]
+        rows = (row
+                for id_, row in self.model.row_id_mapper.iteritems()
+                if ids is None or id_ in ids)
+
+        for row in rows:
+            for idx, value in params_idx:
+                row.data[idx] = value
+
+            path = Gtk.TreePath(row.path)
+            self.model.row_changed(path, self.model.get_iter(row.path))
+            # Even if we call `view.queue_draw` here, it would only be updated
+            # when it got focused. By setting refresh_draw to True, it will
+            # force it to refresh the values when the view gets visible on the
+            # screen, even if it is not focused atm.
+            self.view.refresh_draw = True
+
     def on_data_loaded(self, model, total_recs):
         """Update the total records label.
 
@@ -1012,6 +1046,7 @@ class DataGridView(Gtk.TreeView):
         self._all_expanded = False
         self._block_all_expanded = False
 
+        self.refresh_draw = False
         self._block_draw = False
 
     ###
@@ -1037,6 +1072,9 @@ class DataGridView(Gtk.TreeView):
         """
         if self._block_draw:
             return
+        if self.refresh_draw:
+            GObject.idle_add(self.queue_draw)
+            self.refresh_draw = False
         return Gtk.TreeView.do_draw(self, cr)
 
     def refresh(self):
@@ -1480,6 +1518,7 @@ class DataGridIconView(Gtk.IconView):
         self.connect('button-release-event', self.on_button_release_event)
         self.connect('key-press-event', self.on_key_press_event)
 
+        self.refresh_draw = False
         self._block_draw = False
 
     ###
@@ -1505,6 +1544,9 @@ class DataGridIconView(Gtk.IconView):
         """
         if self._block_draw:
             return
+        if self.refresh_draw:
+            GObject.idle_add(self.queue_draw)
+            self.refresh_draw = False
         return Gtk.IconView.do_draw(self, cr)
 
     def refresh(self):
