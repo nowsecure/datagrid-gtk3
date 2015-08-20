@@ -3,6 +3,8 @@
 import datetime
 import logging
 
+import dateutil.parser
+
 logger = logging.getLogger(__name__)
 __all__ = ('supported_timestamp_formats', 'normalize_timestamp')
 
@@ -62,6 +64,11 @@ _normalizations = dict(
 )
 
 
+class InvalidDateFormat(Exception):
+
+    """Invalid date format exception."""
+
+
 def supported_timestamp_formats():
     """Get a list of supported timestamp formats.
 
@@ -96,3 +103,19 @@ def normalize_timestamp(value, timestamp_format, inverse=False):
 
     pos = _NORM_INV_POS if inverse else _NORM_POS
     return _normalizations[timestamp_format][pos](value)
+
+
+def parse_string(string):
+    """Parse the string to a datetime object.
+
+    :param str string: The string to parse
+    :rtype: `datetime.datetime`
+    :raises: :exc:`InvalidDateFormat` when date format is invalid
+    """
+    try:
+        # Try to parse string as a date
+        value = dateutil.parser.parse(string)
+    except (OverflowError, TypeError, ValueError):
+        raise InvalidDateFormat("Invalid date format %r" % (string, ))
+
+    return value
