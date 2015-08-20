@@ -2,7 +2,6 @@
 
 import datetime
 import logging
-import string
 import HTMLParser
 
 from decimal import Decimal
@@ -12,6 +11,7 @@ from gi.repository import Gtk
 
 from datagrid_gtk3.utils import imageutils
 from datagrid_gtk3.utils import dateutils
+from datagrid_gtk3.utils import stringutils
 
 logger = logging.getLogger(__name__)
 _transformers = {}
@@ -106,11 +106,10 @@ def string_transform(value, max_length=None, oneline=True,
                 raise
             value = decode_fallback(value)
 
-    # Remove non-printable caracteres from the string. Only keep those
+    # Remove non-printable characters from the string. Only keep those
     # considered as whitespace/newline. We cannot use string.printable
-    # here as it would remove unicode caracteres too.
-    value = u''.join(c for c in value
-                     if ord(c) >= 32 or c in string.whitespace)
+    # here as it would remove unicode characters too.
+    value = stringutils.strip_non_printable(value)
 
     if oneline:
         value = u' '.join(v.strip() for v in value.splitlines() if v.strip())
