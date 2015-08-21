@@ -90,13 +90,6 @@ def string_transform(value, max_length=None, oneline=True,
         return '<NULL>'
 
     if isinstance(value, str):
-        # FIXME GTK3: On gtk2, set_text would raise TypeError when
-        # trying to set_text with a string containing a null (\x00)
-        # character. gtk3 will allow that, but if the null character is
-        # at the beginning of it, it will be set as empty.
-        if value.startswith('\x00'):
-            value = repr(value)[1:-1]
-
         value = unicode(value, 'utf-8', 'replace')
     else:
         try:
