@@ -1,5 +1,7 @@
 """Popup calendar widget module."""
-import time
+
+import datetime
+import os
 
 from gi.repository import (
     GObject,
@@ -7,23 +9,64 @@ from gi.repository import (
     Gtk,
 )
 
+from datagrid_gtk3.ui.uifile import UIFile
+from datagrid_gtk3.utils import dateutils
 
-class InvalidDate(Exception):
 
-    """Invalid date custom exception class.
+class _DatePicker(UIFile):
 
-    :param str date: the invalid date string to put in the message
+    """Date picker widget."""
 
-    """
+    UI_FNAME = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)),
+        'glade', 'popupcal.glade')
 
-    def __init__(self, date):
-        """Set exception message."""
-        super(InvalidDate, self).__init__()
-        self.message = 'Invalid date "%s".' % (date)
+    def __init__(self):
+        """Initialize the _DatePicker object."""
+        super(_DatePicker, self).__init__(self.UI_FNAME)
 
-    def __str__(self):
-        """Set str representation of class to exception message."""
-        return self.message
+        for widget in [self.hours, self.minutes]:
+            widget.connect('output', self._on_spinbutton_output)
+
+    ###
+    # Public
+    ###
+
+    def set_datetime(self, date):
+        """Set the date and time for this widget.
+
+        :param date: The date to use to set this widget's values
+        :type date: datetime.datetime
+        """
+        self.calendar.select_month(date.month - 1, date.year)
+        self.calendar.select_day(date.day)
+        self.hours.set_value(date.hour)
+        self.minutes.set_value(date.minute)
+
+    def get_datetime(self):
+        """Get the actual selected date and time.
+
+        :rtype: datetime.datetime
+        """
+        (year, month, day) = self.calendar.get_date()
+        hours = self.hours.get_value_as_int()
+        minutes = self.minutes.get_value_as_int()
+        return datetime.datetime(year, month + 1, day, hours, minutes)
+
+    ###
+    # Callbacks
+    ###
+
+    def _on_spinbutton_output(self, widget):
+        """Override spinbutton output signal.
+
+        We want to make sure that leading zeroes are displayed on the widget.
+
+        :param widget: The spinbutton that emitted the signal
+        :type widget: :class:`Gtk.SpinButton`
+        """
+        widget.set_text('%02d' % (widget.get_value_as_int(), ))
+        return True
 
 
 class DateEntry(Gtk.Entry):
@@ -38,46 +81,31 @@ class DateEntry(Gtk.Entry):
     __gsignals__ = dict(
         date_changed=(GObject.SignalFlags.RUN_FIRST, None, ()))
 
-    DEFAULT_DATE_FORMAT = '%e-%b-%Y'
+    (TYPE_NOW,
+     TYPE_START,
+     TYPE_END) = range(3)
 
-    # Different data formats used to try to parse a text date
-    DATE_FORMATS = (
-        '%Y-%m-%d %H:%M:%S',
-        '%d-%m-%Y',
-        '%d-%b-%Y',
-        '%d-%B-%Y',
-        '%d-%m-%y',
-        '%d-%b-%y',
-        '%d-%B-%y',
-        '%Y-%m-%d',
-        '%Y-%b-%d',
-        '%Y-%B-%d',
-        '%d/%m/%Y',
-        '%d/%b/%Y',
-        '%d/%B/%Y',
-        '%d/%m/%y',
-        '%d/%b/%y',
-        '%d/%B/%y',
-        '%Y/%m/%d',
-        '%Y/%b/%d',
-        '%Y/%B/%d'
-    )
+    DEFAULT_DATE_FORMAT = '%e-%b-%Y %H:%M'
 
-    def __init__(self, parent_window):
+    def __init__(self, parent_window, type_):
         """Set up widget."""
         super(DateEntry, self).__init__()
+
         self.connect('focus_out_event', self.on_focus_out_event)
         self.connect('button_press_event', self.on_button_press_event)
         self.connect('activate', lambda widget: widget.get_toplevel()
                      .child_focus(Gtk.DirectionType.TAB_FORWARD))
         assert parent_window, 'Parent window needed'
+        self.type_ = type_
         self.parent_window = parent_window
-        self.set_width_chars(11)
-
+        self.set_width_chars(15)
         self.calendar_dialog = False
-        self.timestamp = None
 
-    def popup_calendar(self):
+    ###
+    # Private
+    ###
+
+    def _popup_picker(self):
         """Display the calendar dialog."""
         self.calendar_dialog = True
         dialog = Gtk.Dialog(
@@ -86,9 +114,18 @@ class DateEntry(Gtk.Entry):
             (Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
              Gtk.STOCK_OK, Gtk.ResponseType.OK)
         )
-        # self.dialog.set_position(Gtk.WindowPosition.MOUSE)
-        calendar = Gtk.Calendar()
-        dialog.vbox.pack_start(calendar, expand=True, fill=True, padding=0)
+
+        date = self.get_date()
+        if date is None:
+            date = datetime.datetime.now()
+            if self.type_ == self.TYPE_START:
+                date = date.replace(hour=0, minute=0)
+            elif self.type_ == self.TYPE_END:
+                date = date.replace(hour=23, minute=59)
+
+        date_picker = _DatePicker()
+        date_picker.date_picker_alignment.reparent(dialog.vbox)
+        date_picker.set_datetime(date)
         dialog.set_decorated(False)
 
         response_clear = 99
@@ -97,129 +134,72 @@ class DateEntry(Gtk.Entry):
         action_area.reorder_child(clear_btn, 0)
         clear_btn.set_sensitive(bool(self.get_date()))
 
+        calendar = date_picker.calendar
+        response_day_selected = 98
         calendar.connect('day_selected_double_click',
-                         self.on_day_selected, dialog)
-        timestamp = self.timestamp
-        if timestamp is None:
-            timestamp = time.localtime()
-        if timestamp:
-            calendar.select_month(timestamp[1] - 1, timestamp[0])
-            calendar.select_day(timestamp[2])
-        dialog.show_all()
+                         lambda d: dialog.response(response_day_selected))
+
         result = dialog.run()
-        if result == Gtk.ResponseType.OK:
-            self.on_day_selected(calendar, dialog)
+        if result in [Gtk.ResponseType.OK, response_day_selected]:
+            self.set_date(date_picker.get_datetime())
         elif result == response_clear:
             self.set_date(None)
-            dialog.destroy()
-        else:
-            dialog.destroy()
+
+        dialog.destroy()
         self.calendar_dialog = False
 
-    def set_today(self):
-        """Set widget to today's date."""
-        # round the current time into a date
-        timestamp = time.strptime(
-            time.strftime('%d-%b-%Y', time.localtime()), '%d-%b-%Y')
-        self.check_for_signal(timestamp)
-        super(DateEntry, self).set_text(self.get_date())
+    ###
+    # Public
+    ###
 
-    def set_date(self, date, date_format=None):
-        """Set the date in the widget.
+    def set_date(self, date):
+        """Set the date for this widget.
 
-        :param str date: date string
-        :param str date_format: date format string
-        :raises ValueError: if format is None
-
+        :param date: The date object to use
+        :type date: datetime.datetime
         """
-        if date is None or len(date.strip()) == 0:
-            self.check_for_signal(None)
-            super(DateEntry, self).set_text('')
-            return
-        if date_format is None:
-            date_format = self.check_formats(date)
-        else:
-            self.timestamp = time.strptime(date, date_format)
-            super(DateEntry, self).set_text(self.get_date())
-        if date_format is None:
-            raise ValueError('Unknown date format - %s' % (date))
-
-    def get_date(self, date_format=None):
-        """Get the date currently in widget.
-
-        :param str date_format: date format string
-        :return: formatted date time
-        :rtype: str
-
-        """
-        # check if the widget has the focus
-        if self.is_focus():
-            # the widget has the focus
-            # we need to check if the current text is OK
-            text = super(DateEntry, self).get_text()
-            if len(text) > 0:
-                timestamp = self.check_formats(text)
-                if not timestamp:
-                    raise InvalidDate(text)
-            else:
-                return None
-        if self.timestamp is None:
-            return None
-        if date_format is None:
-            date_format = self.DEFAULT_DATE_FORMAT
-        return time.strftime(date_format, self.timestamp)
-
-    def check_for_signal(self, current):
-        """Emit date changed signal if changed."""
-        if current != self.timestamp:
-            self.timestamp = current
+        old_date = self.get_date()
+        date_str = date.strftime(self.DEFAULT_DATE_FORMAT) if date else ''
+        super(DateEntry, self).set_text(date_str.strip())
+        if date != old_date:
             self.emit('date_changed')
 
-    def check_formats(self, text):
-        """Ensure valid date format string is being used (?).
+    def get_date(self, date_format=None):
+        """Get the current date in the widget.
 
-        :param str text: the text of the date string
+        :rtype: datetime.datetime
         """
-        # try multple formats for converting to a timestamp
-        try:
-            timestamp = time.strptime(text, self.DEFAULT_DATE_FORMAT)
-        except ValueError:
-            # Ignore parsing errors
-            pass
-        else:
-            super(DateEntry, self).set_text(
-                time.strftime(self.DEFAULT_DATE_FORMAT, timestamp))
-            self.check_for_signal(timestamp)
-            return timestamp
+        text = super(DateEntry, self).get_text()
+        if not text:
+            return None
 
-        for date_format in self.DATE_FORMATS:
-            try:
-                timestamp = time.strptime(text, date_format)
-            except ValueError:
-                # Ignore parsing errors
-                pass
-            else:
-                super(DateEntry, self).set_text(
-                    time.strftime(self.DEFAULT_DATE_FORMAT, timestamp))
-                self.check_for_signal(timestamp)
-                return timestamp
-        return None
+        date = dateutils.parse_string(text)
+        if self.type_ == self.TYPE_START:
+            date = date.replace(second=0)
+        elif self.type_ == self.TYPE_END:
+            date = date.replace(second=59)
 
-    def set_text(self, _text):
-        """Disallow use of ``set_text``.
+        return date
 
-        :raises AttributeError: if method is used
+    def set_text(self, text):
+        """Set the date in the widget as a text.
+
+        :param str text: The text to be parsed and set on the widget
+        :raises: :exc:`datagrid_gtk3.utils.dateutils.InvalidDateFormat`
+            if the format is not recognized
         """
-        raise AttributeError('Use set_date()')
+        self.set_date(dateutils.parse_string(text))
 
     def get_text(self):
         """Get the text currently in the date widget."""
-        return self.get_date()
+        date = self.get_date()
+        if not date:
+            return ''
+        return date.strftime(self.DEFAULT_DATE_FORMAT)
 
     def clear_date(self):
         """Clear the date widget."""
         super(DateEntry, self).set_text('')
-        self.timestamp = None
 
     ###
     # Signal handler callbacks
@@ -236,12 +216,7 @@ class DateEntry(Gtk.Entry):
         """
         if (event.button == Gdk.BUTTON_PRIMARY and
                 event.type == Gdk.EventType.BUTTON_PRESS):
-            text = super(DateEntry, self).get_text()
-            if text is None or len(text.strip()) == 0:
-                # we don't want to emit a signal as the popup will do so when
-                # needed
-                self.timestamp = None
-            self.popup_calendar()
+            self._popup_picker()
             return True
         else:
             return False
@@ -257,13 +232,17 @@ class DateEntry(Gtk.Entry):
         :type _event: Gdk.Event
 
         """
-        text = super(DateEntry, self).get_text()
-        if text is None or len(text.strip()) == 0:
-            self.check_for_signal(None)
+        try:
+            text = self.get_text()
+        except Exception:
+            valid = False
+        else:
+            valid = True
+
+        if valid and not text:
             return
 
-        timestamp = self.check_formats(text)
-        if timestamp is None and not self.calendar_dialog:
+        if not valid and not self.calendar_dialog:
             dialog = Gtk.MessageDialog(
                 self.parent_window,
                 Gtk.DialogFlags.DESTROY_WITH_PARENT | Gtk.DialogFlags.MODAL,
@@ -272,23 +251,6 @@ class DateEntry(Gtk.Entry):
                 'Unknown date format\n%s' % (text))
             dialog.connect('response', self.on_dialog_response)
             dialog.show()
-
-    def on_day_selected(self, widget, dialog):
-        """Update text when day is selected or OK button in dialog is clicked.
-
-        :param widget: The calendar in which the date was selected
-        :type widget: Gtk.Calendar
-        :param dialog: A dialog that is used to display the calendar widget
-        :type dialog: Gtk.Dialog
-
-        """
-        (year, month, day) = widget.get_date()
-        current = time.strptime(
-            '%d-%d-%d' % (year, month + 1, day), '%Y-%m-%d')
-        super(DateEntry, self).set_text(
-            time.strftime(self.DEFAULT_DATE_FORMAT, current))
-        self.check_for_signal(current)
-        dialog.destroy()
 
     def on_dialog_response(self, dialog, _response):
         """Close error message dialog and grab fous on main one.

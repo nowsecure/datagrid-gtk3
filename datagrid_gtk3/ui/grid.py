@@ -17,7 +17,7 @@ from gi.repository import (
 )
 from pygtkcompat.generictreemodel import GenericTreeModel
 
-from datagrid_gtk3.ui import popupcal
+from datagrid_gtk3.ui.popupcal import DateEntry
 from datagrid_gtk3.ui.uifile import UIFile
 from datagrid_gtk3.utils.dateutils import normalize_timestamp
 from datagrid_gtk3.utils.imageutils import ImageCacheManager
@@ -435,14 +435,16 @@ class DataGridController(object):
                       self.container.image_end_date]:
             image.set_from_icon_name(icon, Gtk.IconSize.BUTTON)
 
-        self.date_start = popupcal.DateEntry(self.container.window)
+        self.date_start = DateEntry(self.container.window,
+                                    DateEntry.TYPE_START)
         self.date_start.set_editable(False)
         self.date_start.set_sensitive(False)
         self.date_start.connect('date_changed', self.on_date_change, 'start')
         # FIXME: ^^ use hyphen in signal name
         self.container.vbox_start_date.pack_start(
             self.date_start, expand=False, fill=True, padding=0)
-        self.date_end = popupcal.DateEntry(self.container.window)
+        self.date_end = DateEntry(self.container.window,
+                                  DateEntry.TYPE_END)
         self.date_end.set_editable(False)
         self.date_end.set_sensitive(False)
         self.date_end.connect('date_changed', self.on_date_change, 'end')
@@ -894,19 +896,12 @@ class DataGridController(object):
         :param data: Arbitrary data passed by widget.
         :data type: None
         """
-        start_date = self.date_start.get_text()
-        end_date = self.date_end.get_text()
-        if start_date:
-            start_date_str = start_date + ' 00:00'
-            # TODO: restore use of time as well as date in UI
-            start_timestamp = self._get_timestamp_from_str(start_date_str)
-        else:
-            start_timestamp = None
-        if end_date:
-            end_date_str = end_date + ' 23:59'
-            end_timestamp = self._get_timestamp_from_str(end_date_str)
-        else:
-            end_timestamp = None
+        initial = datetime.datetime(1970, 1, 1)
+
+        start_date = self.date_start.get_date()
+        start_timestamp = start_date and (start_date - initial).total_seconds()
+        end_date = self.date_end.get_date()
+        end_timestamp = end_date and (end_date - initial).total_seconds()
 
         active_date_column = self.container.combobox_date_columns.get_active()
         model_date_columns = self.container.combobox_date_columns.get_model()
@@ -950,26 +945,6 @@ class DataGridController(object):
     ###
     # Private
     ###
-
-    def _get_timestamp_from_str(self, date_str):
-        """Convert timestamp from string to timestamp.
-
-        Converts string in format supplied by ``popupcal.DateEntry`` widget
-        to Unix timestamp.
-
-        :param str date_str: Date string like ``'19-Jun-2014'``
-        :return: timestamp
-        :rtype: int
-        """
-        date = datetime.datetime.strptime(date_str, '%d-%b-%Y %H:%M')
-        timestamp = int(date.strftime('%s'))
-        # TODO: may need to restore below code when adding times to UI
-        # utc_timestamp = int(datetime.fromutctimestamp(timestamp).
-        #                     strftime("%s"))
-        # diff = timestamp - utc_timestamp
-        # timestamp = utc_timestamp += diff
-        # ## END TODO
-        return timestamp
 
     def _refresh_view(self, update_dict=None, remove_keys=None):
         """Reload the grid with any filter/sort parameters.
