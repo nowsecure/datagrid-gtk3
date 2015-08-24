@@ -66,7 +66,7 @@ class DateEntryTest(unittest.TestCase):
     def test_get_date(self):
         """get_date should return a datetime based on the text on the entry."""
         self._entry.set_property('text', '')
-        self.assertEqual(self._entry.get_date(), None)
+        self.assertIsNone(self._entry.get_date())
 
         self._entry.set_property('text', '10-Aug-2015 00:00')
         self.assertEqual(self._entry.get_date(),
@@ -126,4 +126,4 @@ class DateEntryTest(unittest.TestCase):
             self.assertEqual(self._entry.get_date(),
                              datetime.datetime(2015, 1, 2, 10, 20))
             self._entry._popup_picker()
-            self.assertEqual(self._entry.get_date(), None)
+            self.assertIsNone(self._entry.get_date())
