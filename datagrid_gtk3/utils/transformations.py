@@ -99,10 +99,9 @@ def string_transform(value, max_length=None, oneline=True,
                 raise
             value = decode_fallback(value)
 
-    # Remove non-printable characters from the string. Only keep those
-    # considered as whitespace/newline. We cannot use string.printable
-    # here as it would remove unicode characters too.
-    value = stringutils.strip_non_printable(value)
+    # Replace non-printable characters on the string so the user will
+    # know that there's something there even though it is not printable.
+    value = stringutils.replace_non_printable(value)
 
     if oneline:
         value = u' '.join(v.strip() for v in value.splitlines() if v.strip())
