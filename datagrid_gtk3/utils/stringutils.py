@@ -14,16 +14,6 @@ def is_printable(char):
     return (char_code >= 32) or (9 <= char_code <= 13)
 
 
-def strip_non_printable(string_):
-    """Remove non-printable characters from the string.
-
-    :param string_: The string to remove the characters from
-    :type string_: str
-    :rtype: str
-    """
-    return ''.join(c for c in string_ if is_printable(c))
-
-
 def replace_non_printable(string_):
     """Replace non-printable characters on the string with a replacement.
 

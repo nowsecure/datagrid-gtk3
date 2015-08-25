@@ -8,7 +8,6 @@ import unittest
 from datagrid_gtk3.utils.stringutils import (
     is_printable,
     replace_non_printable,
-    strip_non_printable,
 )
 
 
@@ -30,19 +29,6 @@ class StringUtilsTest(unittest.TestCase):
 
         for char in [chr(0), chr(20), chr(30)]:
             self.assertFalse(is_printable(char))
-
-    def test_strip_non_printable(self):
-        """Tests for :func:`datagrid.utils.stringutils.strip_non_printable`."""
-        self.assertEqual(
-            strip_non_printable(
-                "Some string\nWith\tsome %s non-printable, %s chars" % (
-                    chr(20), chr(30))),
-            "Some string\nWith\tsome  non-printable,  chars")
-
-        self.assertEqual(
-            strip_non_printable(
-                u"Ração %s para %s búfalos" % (chr(20), chr(30))),
-            u"Ração  para  búfalos")
 
     def test_replace_non_printable(self):
         """Test :func:`datagrid.utils.stringutils.replace_non_printable`."""
