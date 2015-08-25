@@ -14,11 +14,14 @@ def is_printable(char):
     return (char_code >= 32) or (9 <= char_code <= 13)
 
 
-def strip_non_printable(string_):
-    """Remove non-printable characters from the string.
+def replace_non_printable(string_):
+    """Replace non-printable characters on the string with a replacement.
 
-    :param string_: The string to remove the characters from
+    Use the unicode replacement character (U+FFFD), instead of the
+    non-printable ones.
+
+    :param string_: The string to replace the characters from
     :type string_: str
     :rtype: str
     """
-    return ''.join(c for c in string_ if is_printable(c))
+    return ''.join(c if is_printable(c) else u"\uFFFD" for c in string_)
