@@ -71,7 +71,7 @@ def recurse_data_files(path):
 
 setup(
     name='datagrid_gtk3',
-    version='0.1.4',
+    version='0.1.5',
     license='MIT',
     description='MVC framework for working with the GTK3 TreeView widget.',
     long_description=readme + '\n\n' + history,
